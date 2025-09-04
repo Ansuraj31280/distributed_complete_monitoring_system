@@ -1,0 +1,559 @@
+# 网页监控系统配置文件
+# 注意：此文件包含系统默认配置，敏感信息请使用环境变量或local.yaml覆盖
+
+# 系统基础配置
+system:
+  name: "网页监控系统"
+  version: "1.0.0"
+  description: "分布式网页内容监控系统"
+  timezone: "Asia/Shanghai"
+  language: "zh-CN"
+  debug: false
+  testing: false
+
+# 日志配置
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file:
+    enabled: true
+    path: "logs/app.log"
+    max_size: "10MB"
+    backup_count: 5
+    rotation: "daily"
+  console:
+    enabled: true
+    level: "INFO"
+  syslog:
+    enabled: false
+    host: "localhost"
+    port: 514
+
+# 数据库配置
+database:
+  # 主数据库（PostgreSQL）
+  primary:
+    host: "localhost"
+    port: 5432
+    name: "monitor"
+    user: "monitor"
+    password: "monitor123"
+    pool_size: 10
+    max_overflow: 20
+    pool_timeout: 30
+    pool_recycle: 3600
+    echo: false
+    
+  # 只读副本（可选）
+  replica:
+    enabled: false
+    host: "localhost"
+    port: 5433
+    name: "monitor_replica"
+    user: "monitor_readonly"
+    password: "readonly123"
+    
+  # 连接选项
+  options:
+    connect_timeout: 10
+    command_timeout: 30
+    application_name: "web_monitor"
+    sslmode: "prefer"
+
+# Redis配置
+redis:
+  # 主Redis实例
+  primary:
+    host: "localhost"
+    port: 6379
+    db: 0
+    password: ""
+    socket_timeout: 5
+    socket_connect_timeout: 5
+    socket_keepalive: true
+    socket_keepalive_options: {}
+    connection_pool_max_connections: 50
+    
+  # 缓存Redis实例
+  cache:
+    host: "localhost"
+    port: 6379
+    db: 1
+    password: ""
+    default_timeout: 300
+    key_prefix: "monitor:cache:"
+    
+  # 会话Redis实例
+  session:
+    host: "localhost"
+    port: 6379
+    db: 2
+    password: ""
+    key_prefix: "monitor:session:"
+    permanent_session_lifetime: 3600
+
+# Celery任务队列配置
+celery:
+  broker:
+    url: "redis://localhost:6379/3"
+    transport_options:
+      visibility_timeout: 3600
+      fanout_prefix: true
+      fanout_patterns: true
+      
+  result_backend:
+    url: "redis://localhost:6379/4"
+    result_expires: 3600
+    result_compression: "gzip"
+    
+  task_settings:
+    task_serializer: "json"
+    result_serializer: "json"
+    accept_content: ["json"]
+    timezone: "Asia/Shanghai"
+    enable_utc: true
+    
+  worker_settings:
+    concurrency: 4
+    prefetch_multiplier: 1
+    max_tasks_per_child: 1000
+    task_soft_time_limit: 300
+    task_time_limit: 600
+    worker_log_format: "[%(asctime)s: %(levelname)s/%(processName)s] %(message)s"
+    worker_task_log_format: "[%(asctime)s: %(levelname)s/%(processName)s][%(task_name)s(%(task_id)s)] %(message)s"
+    
+  beat_settings:
+    schedule_filename: "celerybeat-schedule"
+    max_loop_interval: 300
+    
+  routes:
+    "monitor.tasks.fetch_website_content": {"queue": "fetch"}
+    "monitor.tasks.detect_changes": {"queue": "detect"}
+    "monitor.tasks.send_notification": {"queue": "notify"}
+    "monitor.tasks.cleanup_old_data": {"queue": "maintenance"}
+    "monitor.tasks.system_health_check": {"queue": "system"}
+
+# Flask Web应用配置
+web:
+  host: "0.0.0.0"
+  port: 5000
+  debug: false
+  threaded: true
+  
+  # 安全配置
+  security:
+    secret_key: "your-secret-key-change-in-production"
+    jwt_secret_key: "your-jwt-secret-change-in-production"
+    jwt_access_token_expires: 3600
+    session_timeout: 3600
+    csrf_enabled: true
+    csrf_time_limit: 3600
+    
+  # CORS配置
+  cors:
+    enabled: true
+    origins: ["http://localhost:3000", "http://localhost:5000"]
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    headers: ["Content-Type", "Authorization"]
+    
+  # 限流配置
+  rate_limiting:
+    enabled: true
+    default_limits: ["100/hour"]
+    api_limits: ["1000/hour"]
+    login_limits: ["5/minute"]
+    
+  # 文件上传配置
+  upload:
+    folder: "data/uploads"
+    max_content_length: 16777216  # 16MB
+    allowed_extensions: ["txt", "pdf", "png", "jpg", "jpeg", "gif", "csv", "xlsx"]
+
+# 监控配置
+monitoring:
+  # 抓取配置
+  fetching:
+    max_concurrent_fetches: 10
+    request_timeout: 30
+    request_retries: 3
+    request_delay: 1
+    user_agent_rotation: true
+    proxy_rotation: false
+    
+  # User-Agent列表
+  user_agents:
+    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    - "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0"
+    - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:89.0) Gecko/20100101 Firefox/89.0"
+    
+  # Selenium配置
+  selenium:
+    headless: true
+    window_size: "1920x1080"
+    timeout: 30
+    page_load_timeout: 30
+    implicit_wait: 10
+    chrome_options:
+      - "--no-sandbox"
+      - "--disable-dev-shm-usage"
+      - "--disable-gpu"
+      - "--disable-extensions"
+      - "--disable-plugins"
+      - "--disable-images"
+      - "--disable-javascript"
+    firefox_options:
+      - "--headless"
+      - "--no-sandbox"
+      - "--disable-gpu"
+      
+  # 代理配置
+  proxy:
+    enabled: false
+    rotation: false
+    timeout: 10
+    proxies: []
+    # 示例代理配置
+    # proxies:
+    #   - http://proxy1.example.com:8080
+    #   - http://user:pass@proxy2.example.com:8080
+    #   - socks5://proxy3.example.com:1080
+    
+  # 检测配置
+  detection:
+    algorithms:
+      hash:
+        enabled: true
+        algorithm: "sha256"
+      diff:
+        enabled: true
+        context_lines: 3
+        ignore_whitespace: true
+      semantic:
+        enabled: true
+        model_path: "models/semantic"
+        confidence_threshold: 0.8
+        
+  # 数据保留配置
+  data_retention:
+    content_history_days: 30
+    change_history_days: 90
+    notification_history_days: 30
+    task_history_days: 7
+    log_retention_days: 30
+    
+  # 清理配置
+  cleanup:
+    enabled: true
+    interval_hours: 24
+    batch_size: 1000
+    compress_old_data: true
+
+# 通知配置
+notification:
+  # 全局通知设置
+  global:
+    enabled: true
+    rate_limit:
+      cooldown_minutes: 30
+      max_per_hour: 10
+    quiet_hours:
+      enabled: true
+      start: "22:00"
+      end: "08:00"
+      timezone: "Asia/Shanghai"
+    batch_notifications:
+      enabled: true
+      batch_size: 50
+      batch_timeout: 300
+      
+  # 邮件通知
+  email:
+    enabled: false
+    smtp:
+      host: "smtp.gmail.com"
+      port: 587
+      use_tls: true
+      use_ssl: false
+      username: ""
+      password: ""
+    sender:
+      name: "网页监控系统"
+      email: "noreply@monitor.com"
+    templates:
+      change_detected: "templates/email/change_detected.html"
+      system_alert: "templates/email/system_alert.html"
+      
+  # 钉钉通知
+  dingtalk:
+    enabled: false
+    webhook: ""
+    secret: ""
+    at_all: false
+    at_mobiles: []
+    
+  # 企业微信通知
+  wecom:
+    enabled: false
+    webhook: ""
+    
+  # Slack通知
+  slack:
+    enabled: false
+    webhook: ""
+    channel: "#monitoring"
+    username: "Monitor Bot"
+    
+  # Telegram通知
+  telegram:
+    enabled: false
+    bot_token: ""
+    chat_id: ""
+    
+  # Webhook通知
+  webhook:
+    enabled: false
+    urls: []
+    timeout: 10
+    retries: 3
+    headers:
+      Content-Type: "application/json"
+      User-Agent: "WebMonitor/1.0"
+
+# 安全配置
+security:
+  # 认证配置
+  authentication:
+    enabled: true
+    session_timeout: 3600
+    max_login_attempts: 5
+    lockout_duration: 300
+    password_policy:
+      min_length: 8
+      require_uppercase: true
+      require_lowercase: true
+      require_numbers: true
+      require_special: true
+      
+  # 授权配置
+  authorization:
+    enabled: true
+    default_role: "user"
+    admin_users: ["admin"]
+    
+  # API安全
+  api:
+    rate_limiting: true
+    api_key_required: false
+    cors_enabled: true
+    
+  # 数据加密
+  encryption:
+    enabled: true
+    algorithm: "AES-256-GCM"
+    key_rotation_days: 90
+    
+  # 审计日志
+  audit:
+    enabled: true
+    log_file: "logs/audit.log"
+    events:
+      - "login"
+      - "logout"
+      - "website_add"
+      - "website_update"
+      - "website_delete"
+      - "settings_change"
+
+# 性能配置
+performance:
+  # 缓存配置
+  caching:
+    enabled: true
+    default_timeout: 300
+    cache_type: "redis"
+    key_prefix: "monitor:cache:"
+    
+  # 数据库优化
+  database:
+    connection_pooling: true
+    query_timeout: 30
+    slow_query_threshold: 1.0
+    
+  # 任务队列优化
+  task_queue:
+    prefetch_multiplier: 1
+    max_tasks_per_child: 1000
+    task_compression: true
+    
+  # 内存管理
+  memory:
+    max_memory_usage: "80%"
+    garbage_collection: true
+    
+  # 并发控制
+  concurrency:
+    max_workers: 10
+    max_concurrent_requests: 100
+    request_timeout: 30
+
+# 监控和告警
+monitoring_alerts:
+  # 系统监控
+  system:
+    enabled: true
+    check_interval: 60
+    cpu_threshold: 80
+    memory_threshold: 80
+    disk_threshold: 90
+    
+  # 任务监控
+  tasks:
+    enabled: true
+    failure_threshold: 10
+    queue_length_threshold: 100
+    execution_time_threshold: 300
+    
+  # 应用监控
+  application:
+    enabled: true
+    response_time_threshold: 5.0
+    error_rate_threshold: 5.0
+    
+  # 告警通知
+  alerts:
+    enabled: true
+    channels: ["email", "dingtalk"]
+    escalation_levels:
+      warning: 1
+      critical: 3
+      emergency: 5
+
+# 第三方服务配置
+third_party:
+  # Sentry错误监控
+  sentry:
+    enabled: false
+    dsn: ""
+    environment: "production"
+    
+  # Google Analytics
+  google_analytics:
+    enabled: false
+    tracking_id: ""
+    
+  # 百度统计
+  baidu_analytics:
+    enabled: false
+    site_id: ""
+    
+  # 云存储
+  cloud_storage:
+    provider: "local"  # local, aliyun, tencent, aws
+    local:
+      path: "data/storage"
+    aliyun_oss:
+      access_key_id: ""
+      access_key_secret: ""
+      bucket: ""
+      endpoint: ""
+    tencent_cos:
+      secret_id: ""
+      secret_key: ""
+      bucket: ""
+      region: ""
+    aws_s3:
+      access_key_id: ""
+      secret_access_key: ""
+      bucket: ""
+      region: ""
+
+# 机器学习配置
+machine_learning:
+  enabled: false
+  model_path: "models/"
+  gpu_enabled: false
+  batch_size: 32
+  confidence_threshold: 0.8
+  models:
+    text_similarity:
+      enabled: true
+      model_name: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    image_similarity:
+      enabled: false
+      model_name: "resnet50"
+    anomaly_detection:
+      enabled: false
+      model_name: "isolation_forest"
+
+# API配置
+api:
+  version: "v1"
+  prefix: "/api/v1"
+  documentation:
+    enabled: true
+    url: "/docs"
+    redoc_url: "/redoc"
+    title: "网页监控系统 API"
+    description: "分布式网页内容监控系统的RESTful API"
+    version: "1.0.0"
+    
+  # API限流
+  rate_limiting:
+    enabled: true
+    default_limits: ["1000/hour", "100/minute"]
+    per_method_limits:
+      GET: ["2000/hour"]
+      POST: ["500/hour"]
+      PUT: ["200/hour"]
+      DELETE: ["100/hour"]
+      
+  # API认证
+  authentication:
+    enabled: true
+    methods: ["jwt", "api_key"]
+    jwt_expiration: 3600
+    api_key_header: "X-API-Key"
+
+# 备份配置
+backup:
+  enabled: true
+  interval_hours: 24
+  retention_days: 7
+  storage_path: "backups/"
+  compress: true
+  encryption: true
+  targets:
+    - "database"
+    - "config"
+    - "logs"
+  exclude_patterns:
+    - "*.tmp"
+    - "*.cache"
+    - "__pycache__"
+
+# 国际化配置
+i18n:
+  enabled: true
+  default_language: "zh-CN"
+  supported_languages:
+    - "zh-CN"
+    - "en-US"
+    - "ja-JP"
+  translation_path: "translations/"
+  fallback_language: "en-US"
+
+# 开发配置
+development:
+  debug_toolbar: false
+  profiler_enabled: false
+  auto_reload: true
+  template_auto_reload: true
+  
+# 测试配置
+testing:
+  database_url: "sqlite:///test.db"
+  redis_url: "redis://localhost:6379/15"
+  celery_always_eager: true
+  wtf_csrf_enabled: false

@@ -1,0 +1,137 @@
+# 网页监控系统配置文件
+
+# 数据库配置
+database:
+  postgresql:
+    host: localhost
+    port: 5432
+    database: monitor
+    username: monitor
+    password: "monitor123"
+    pool_size: 10
+    max_overflow: 20
+  redis:
+    host: localhost
+    port: 6379
+    db: 0
+    password: null
+    max_connections: 10
+
+# Celery任务队列配置
+celery:
+  broker_url: redis://localhost:6379/1
+  result_backend: redis://localhost:6379/2
+  task_serializer: json
+  accept_content: [json]
+  result_serializer: json
+  timezone: Asia/Shanghai
+  enable_utc: false
+  worker_concurrency: 4
+  task_routes:
+    monitor.tasks.check_website: {queue: check_queue}
+    monitor.tasks.analyze_changes: {queue: analyze_queue}
+
+# 网页抓取配置
+fetcher:
+  timeout: 30
+  max_retries: 3
+  retry_delay: 5
+  concurrent_requests: 10
+  user_agents:
+    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15"
+  proxies:
+    enabled: false
+    pool: []
+  selenium:
+    enabled: true
+    driver_path: "chromedriver"
+    headless: true
+    window_size: "1920x1080"
+    page_load_timeout: 60
+
+# 变化检测配置
+detection:
+  algorithms:
+    text_similarity: 0.9
+    structure_similarity: 0.8
+    image_similarity: 0.95
+  ignore_patterns:
+    - "timestamp"
+    - "random"
+    - "date"
+  intervals:
+    high_priority: 5
+    medium_priority: 15
+    low_priority: 60
+
+# 通知配置
+notification:
+  email:
+    enabled: false
+    smtp_server: smtp.example.com
+    smtp_port: 587
+    username: user@example.com
+    password: password
+    from_address: monitor@example.com
+  webhook:
+    enabled: false
+    urls: []
+  dingtalk:
+    enabled: false
+    webhook_url: ""
+    secret: ""
+
+# 存储配置
+storage:
+  retention:
+    raw_data_days: 30
+    change_history_days: 90
+    logs_days: 30
+  cache:
+    webpage_content_ttl: 3600
+    detection_result_ttl: 86400
+
+# 系统监控配置
+monitoring:
+  system:
+    cpu_threshold: 80
+    memory_threshold: 80
+    disk_threshold: 90
+  tasks:
+    max_queue_size: 1000
+    max_processing_time: 300
+    failure_rate_threshold: 0.1
+
+# Web界面配置
+web:
+  host: 0.0.0.0
+  port: 8000
+  debug: true
+  secret_key: "your-secret-key-here"
+  admin_username: "admin"
+  admin_password: "admin123"
+
+# 日志配置
+logging:
+  level: INFO
+  format: "{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} - {message}"
+  rotation: "500 MB"
+  retention: "10 days"
+  compression: "zip"
+
+# 安全配置
+security:
+  api_rate_limit_per_minute: 100
+  allowed_ips: ""
+  https_only: false
+  enable_csrf_protection: true
+
+# 常规设置
+general:
+  system_name: "网页监控系统"
+  default_check_interval: 30
+  max_retries: 3
+  timezone: "Asia/Shanghai"
+  log_level: "INFO"
+  enable_metrics: true

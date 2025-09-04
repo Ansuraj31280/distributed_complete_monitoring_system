@@ -1,0 +1,970 @@
+{% extends "base.html" %}
+
+{% block title %}任务管理 - 网页监控系统{% endblock %}
+
+{% block page_title %}
+<i class="fas fa-tasks me-2"></i>任务管理
+{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+    <button type="button" class="btn btn-outline-primary" onclick="refreshTasks()">
+        <i class="fas fa-sync-alt"></i> 刷新
+    </button>
+    {% if session.role == 'admin' %}
+    <button type="button" class="btn btn-outline-danger" onclick="clearFailedTasks()">
+        <i class="fas fa-trash"></i> 清理失败任务
+    </button>
+    <button type="button" class="btn btn-outline-warning" onclick="retryFailedTasks()">
+        <i class="fas fa-redo"></i> 重试失败任务
+    </button>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- 任务统计卡片 -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card border-left-primary">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            运行中任务
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="runningTasksCount">
+                            {{ task_stats.running or 0 }}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-play-circle fa-2x text-primary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card border-left-success">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            成功任务
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="successTasksCount">
+                            {{ task_stats.success or 0 }}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-check-circle fa-2x text-success"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card border-left-danger">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                            失败任务
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="failedTasksCount">
+                            {{ task_stats.failed or 0 }}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-exclamation-circle fa-2x text-danger"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card border-left-warning">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            等待中任务
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="pendingTasksCount">
+                            {{ task_stats.pending or 0 }}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-clock fa-2x text-warning"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 队列状态 -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-layer-group me-2"></i>队列状态
+                </h6>
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="refreshQueues()">
+                    <i class="fas fa-sync-alt"></i> 刷新队列
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="row" id="queueStatus">
+                    {% for queue_name, queue_info in queue_stats.items() %}
+                    <div class="col-md-4 mb-3">
+                        <div class="card border-left-info">
+                            <div class="card-body py-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="font-weight-bold text-info mb-1">{{ queue_name }}</h6>
+                                        <div class="text-sm">
+                                            <span class="badge bg-primary me-1">{{ queue_info.length }} 任务</span>
+                                            <span class="badge bg-success">{{ queue_info.workers }} 工作进程</span>
+                                        </div>
+                                    </div>
+                                    <div class="text-right">
+                                        <i class="fas fa-server fa-2x text-info"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 任务过滤和搜索 -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="input-group">
+            <span class="input-group-text">
+                <i class="fas fa-search"></i>
+            </span>
+            <input type="text" class="form-control" id="searchInput" placeholder="搜索任务ID或名称...">
+        </div>
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" id="statusFilter">
+            <option value="">所有状态</option>
+            <option value="PENDING">等待中</option>
+            <option value="STARTED">运行中</option>
+            <option value="SUCCESS">成功</option>
+            <option value="FAILURE">失败</option>
+            <option value="RETRY">重试中</option>
+            <option value="REVOKED">已撤销</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" id="taskTypeFilter">
+            <option value="">所有类型</option>
+            <option value="fetch_website">网页抓取</option>
+            <option value="detect_changes">变化检测</option>
+            <option value="send_notification">发送通知</option>
+            <option value="schedule_website">调度网站</option>
+            <option value="batch_fetch">批量抓取</option>
+            <option value="cleanup_old_data">数据清理</option>
+            <option value="system_health_check">系统检查</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" id="timeFilter">
+            <option value="">所有时间</option>
+            <option value="1h">最近1小时</option>
+            <option value="6h">最近6小时</option>
+            <option value="24h">最近24小时</option>
+            <option value="7d">最近7天</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" id="sortBy">
+            <option value="created_at">创建时间</option>
+            <option value="started_at">开始时间</option>
+            <option value="completed_at">完成时间</option>
+            <option value="duration">执行时长</option>
+        </select>
+    </div>
+</div>
+
+<!-- 任务列表 -->
+<div class="card">
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+        <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-list me-2"></i>任务列表
+            <span class="badge bg-secondary ms-2" id="tasksCount">{{ tasks|length }}</span>
+        </h6>
+        <div class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn btn-outline-primary" onclick="selectAll()">
+                全选
+            </button>
+            <button type="button" class="btn btn-outline-secondary" onclick="clearSelection()">
+                清除
+            </button>
+            {% if session.role == 'admin' %}
+            <button type="button" class="btn btn-outline-danger" onclick="batchCancel()">
+                批量取消
+            </button>
+            <button type="button" class="btn btn-outline-warning" onclick="batchRetry()">
+                批量重试
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="tasksTable">
+                <thead class="table-light">
+                    <tr>
+                        <th width="40">
+                            <input type="checkbox" class="form-check-input" id="selectAllCheckbox">
+                        </th>
+                        <th>任务信息</th>
+                        <th>状态</th>
+                        <th>队列</th>
+                        <th>执行时间</th>
+                        <th>耗时</th>
+                        <th>进度</th>
+                        <th width="120">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="tasksTableBody">
+                    {% for task in tasks %}
+                    <tr data-task-id="{{ task.id }}">
+                        <td>
+                            <input type="checkbox" class="form-check-input task-checkbox" value="{{ task.id }}">
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="me-3">
+                                    {% if task.name == 'fetch_website' %}
+                                    <i class="fas fa-download text-primary fa-lg"></i>
+                                    {% elif task.name == 'detect_changes' %}
+                                    <i class="fas fa-search text-info fa-lg"></i>
+                                    {% elif task.name == 'send_notification' %}
+                                    <i class="fas fa-bell text-warning fa-lg"></i>
+                                    {% elif task.name == 'schedule_website' %}
+                                    <i class="fas fa-clock text-success fa-lg"></i>
+                                    {% elif task.name == 'batch_fetch' %}
+                                    <i class="fas fa-layer-group text-secondary fa-lg"></i>
+                                    {% else %}
+                                    <i class="fas fa-cog text-muted fa-lg"></i>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <div class="font-weight-bold">{{ task.name }}</div>
+                                    <small class="text-muted">
+                                        <i class="fas fa-tag me-1"></i>{{ task.id[:8] }}...
+                                    </small>
+                                    {% if task.args %}
+                                    <br><small class="text-info">
+                                        参数: {{ task.args[:50] }}{% if task.args|length > 50 %}...{% endif %}
+                                    </small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            {% if task.state == 'PENDING' %}
+                            <span class="badge bg-warning">等待中</span>
+                            {% elif task.state == 'STARTED' %}
+                            <span class="badge bg-primary">运行中</span>
+                            {% elif task.state == 'SUCCESS' %}
+                            <span class="badge bg-success">成功</span>
+                            {% elif task.state == 'FAILURE' %}
+                            <span class="badge bg-danger">失败</span>
+                            {% elif task.state == 'RETRY' %}
+                            <span class="badge bg-info">重试中</span>
+                            {% elif task.state == 'REVOKED' %}
+                            <span class="badge bg-secondary">已撤销</span>
+                            {% else %}
+                            <span class="badge bg-light text-dark">{{ task.state }}</span>
+                            {% endif %}
+                            
+                            {% if task.retries and task.retries > 0 %}
+                            <br><small class="text-muted">重试: {{ task.retries }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-dark">{{ task.queue or 'default' }}</span>
+                        </td>
+                        <td>
+                            <div>
+                                {% if task.started_at %}
+                                <small class="text-muted">开始: {{ task.started_at | timedelta }}</small>
+                                {% endif %}
+                                {% if task.completed_at %}
+                                <br><small class="text-muted">完成: {{ task.completed_at | timedelta }}</small>
+                                {% endif %}
+                                {% if not task.started_at and not task.completed_at %}
+                                <small class="text-muted">创建: {{ task.created_at | timedelta }}</small>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            {% if task.started_at and task.completed_at %}
+                            {% set duration = (task.completed_at - task.started_at).total_seconds() %}
+                            <span class="badge bg-info">{{ "%.2f" | format(duration) }}s</span>
+                            {% elif task.started_at %}
+                            <span class="badge bg-warning">运行中</span>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if task.state == 'STARTED' and task.progress %}
+                            <div class="progress" style="height: 20px; width: 80px;">
+                                <div class="progress-bar bg-primary" style="width: {{ task.progress }}%">
+                                    {{ task.progress }}%
+                                </div>
+                            </div>
+                            {% elif task.state == 'SUCCESS' %}
+                            <div class="progress" style="height: 20px; width: 80px;">
+                                <div class="progress-bar bg-success" style="width: 100%">
+                                    100%
+                                </div>
+                            </div>
+                            {% elif task.state == 'FAILURE' %}
+                            <div class="progress" style="height: 20px; width: 80px;">
+                                <div class="progress-bar bg-danger" style="width: 100%">
+                                    失败
+                                </div>
+                            </div>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-primary btn-sm" 
+                                        onclick="viewTaskDetail('{{ task.id }}')"
+                                        data-bs-toggle="tooltip" title="查看详情">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                
+                                {% if task.state in ['FAILURE'] and session.role == 'admin' %}
+                                <button type="button" class="btn btn-outline-warning btn-sm" 
+                                        onclick="retryTask('{{ task.id }}')"
+                                        data-bs-toggle="tooltip" title="重试">
+                                    <i class="fas fa-redo"></i>
+                                </button>
+                                {% endif %}
+                                
+                                {% if task.state in ['PENDING', 'STARTED'] and session.role == 'admin' %}
+                                <button type="button" class="btn btn-outline-danger btn-sm" 
+                                        onclick="cancelTask('{{ task.id }}')"
+                                        data-bs-toggle="tooltip" title="取消">
+                                    <i class="fas fa-stop"></i>
+                                </button>
+                                {% endif %}
+                                
+                                {% if task.result and task.state == 'SUCCESS' %}
+                                <button type="button" class="btn btn-outline-info btn-sm" 
+                                        onclick="viewTaskResult('{{ task.id }}')"
+                                        data-bs-toggle="tooltip" title="查看结果">
+                                    <i class="fas fa-file-alt"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        {% if not tasks %}
+        <div class="text-center py-5">
+            <i class="fas fa-tasks fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">暂无任务</h5>
+            <p class="text-muted">系统中还没有任何任务记录</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 分页 -->
+{% if tasks and tasks|length >= 50 %}
+<nav aria-label="任务列表分页" class="mt-4">
+    <ul class="pagination justify-content-center">
+        <li class="page-item">
+            <a class="page-link" href="#" onclick="loadPage(1)">首页</a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="#" onclick="loadPage(currentPage - 1)">上一页</a>
+        </li>
+        <li class="page-item active">
+            <span class="page-link" id="currentPageSpan">1</span>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="#" onclick="loadPage(currentPage + 1)">下一页</a>
+        </li>
+    </ul>
+</nav>
+{% endif %}
+
+<!-- 任务详情模态框 -->
+<div class="modal fade" id="taskDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-info-circle me-2"></i>任务详情
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="taskDetailContent">
+                <!-- 动态加载内容 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 任务结果模态框 -->
+<div class="modal fade" id="taskResultModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-file-alt me-2"></i>任务结果
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="taskResultContent">
+                <!-- 动态加载内容 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .border-left-primary {
+        border-left: 0.25rem solid #4e73df !important;
+    }
+    
+    .border-left-success {
+        border-left: 0.25rem solid #1cc88a !important;
+    }
+    
+    .border-left-danger {
+        border-left: 0.25rem solid #e74a3b !important;
+    }
+    
+    .border-left-warning {
+        border-left: 0.25rem solid #f6c23e !important;
+    }
+    
+    .border-left-info {
+        border-left: 0.25rem solid #36b9cc !important;
+    }
+    
+    .progress {
+        border-radius: 10px;
+    }
+    
+    .table td {
+        vertical-align: middle;
+    }
+    
+    .btn-group-sm .btn {
+        padding: 0.25rem 0.4rem;
+    }
+    
+    .task-result {
+        font-family: 'Courier New', monospace;
+        font-size: 0.9em;
+        white-space: pre-wrap;
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 5px;
+        max-height: 400px;
+        overflow-y: auto;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentPage = 1;
+    let selectedTasks = [];
+    let refreshInterval;
+    
+    $(document).ready(function() {
+        // 初始化
+        initializeEventHandlers();
+        updateTasksCount();
+        
+        // 搜索和过滤功能
+        $('#searchInput').on('input', debounce(filterTasks, 300));
+        $('#statusFilter, #taskTypeFilter, #timeFilter, #sortBy').on('change', filterTasks);
+        
+        // 全选功能
+        $('#selectAllCheckbox').on('change', function() {
+            const isChecked = $(this).is(':checked');
+            $('.task-checkbox').prop('checked', isChecked);
+            updateSelectedTasks();
+        });
+        
+        // 单选功能
+        $('.task-checkbox').on('change', updateSelectedTasks);
+        
+        // 自动刷新
+        startAutoRefresh();
+        
+        // 初始化工具提示
+        $('[data-bs-toggle="tooltip"]').tooltip();
+    });
+    
+    // 初始化事件处理器
+    function initializeEventHandlers() {
+        // 页面卸载时停止自动刷新
+        $(window).on('beforeunload', function() {
+            stopAutoRefresh();
+        });
+    }
+    
+    // 防抖函数
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+    
+    // 过滤任务
+    function filterTasks() {
+        const searchTerm = $('#searchInput').val().toLowerCase();
+        const statusFilter = $('#statusFilter').val();
+        const taskTypeFilter = $('#taskTypeFilter').val();
+        const timeFilter = $('#timeFilter').val();
+        
+        let rows = Array.from($('#tasksTableBody tr'));
+        
+        // 过滤
+        rows.forEach(row => {
+            const $row = $(row);
+            const taskName = $row.find('td:nth-child(2) .font-weight-bold').text().toLowerCase();
+            const taskId = $row.find('td:nth-child(2) small').text().toLowerCase();
+            const status = $row.find('.badge').first().text().trim();
+            
+            let showRow = true;
+            
+            // 搜索过滤
+            if (searchTerm && !taskName.includes(searchTerm) && !taskId.includes(searchTerm)) {
+                showRow = false;
+            }
+            
+            // 状态过滤
+            if (statusFilter && !status.includes(statusFilter)) {
+                showRow = false;
+            }
+            
+            // 任务类型过滤
+            if (taskTypeFilter && !taskName.includes(taskTypeFilter)) {
+                showRow = false;
+            }
+            
+            // 时间过滤（这里简化处理）
+            if (timeFilter) {
+                // 实际应用中需要根据时间戳进行过滤
+            }
+            
+            $row.toggle(showRow);
+        });
+        
+        updateTasksCount();
+    }
+    
+    // 更新任务计数
+    function updateTasksCount() {
+        const visibleCount = $('#tasksTableBody tr:visible').length;
+        $('#tasksCount').text(visibleCount);
+    }
+    
+    // 更新选中的任务
+    function updateSelectedTasks() {
+        selectedTasks = [];
+        $('.task-checkbox:checked').each(function() {
+            selectedTasks.push($(this).val());
+        });
+        
+        // 更新全选状态
+        const totalCheckboxes = $('.task-checkbox').length;
+        const checkedCheckboxes = $('.task-checkbox:checked').length;
+        
+        $('#selectAllCheckbox').prop('indeterminate', checkedCheckboxes > 0 && checkedCheckboxes < totalCheckboxes);
+        $('#selectAllCheckbox').prop('checked', checkedCheckboxes === totalCheckboxes && totalCheckboxes > 0);
+    }
+    
+    // 全选
+    function selectAll() {
+        $('.task-checkbox:visible').prop('checked', true);
+        updateSelectedTasks();
+    }
+    
+    // 清除选择
+    function clearSelection() {
+        $('.task-checkbox').prop('checked', false);
+        $('#selectAllCheckbox').prop('checked', false);
+        updateSelectedTasks();
+    }
+    
+    // 刷新任务列表
+    function refreshTasks() {
+        location.reload();
+    }
+    
+    // 刷新队列状态
+    function refreshQueues() {
+        showLoading($('#queueStatus'));
+        
+        $.get('/api/queue/status')
+            .done(function(response) {
+                if (response.success) {
+                    updateQueueStatus(response.data);
+                } else {
+                    showError('刷新队列状态失败');
+                }
+            })
+            .fail(function() {
+                showError('刷新队列状态失败');
+            })
+            .always(function() {
+                hideLoading($('#queueStatus'));
+            });
+    }
+    
+    // 更新队列状态
+    function updateQueueStatus(queueData) {
+        let content = '';
+        
+        Object.keys(queueData).forEach(queueName => {
+            const queue = queueData[queueName];
+            content += `
+                <div class="col-md-4 mb-3">
+                    <div class="card border-left-info">
+                        <div class="card-body py-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="font-weight-bold text-info mb-1">${queueName}</h6>
+                                    <div class="text-sm">
+                                        <span class="badge bg-primary me-1">${queue.length} 任务</span>
+                                        <span class="badge bg-success">${queue.workers} 工作进程</span>
+                                    </div>
+                                </div>
+                                <div class="text-right">
+                                    <i class="fas fa-server fa-2x text-info"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        $('#queueStatus').html(content);
+    }
+    
+    // 查看任务详情
+    function viewTaskDetail(taskId) {
+        showLoading($('#taskDetailContent'));
+        $('#taskDetailModal').modal('show');
+        
+        $.get(`/api/tasks/${taskId}/status`)
+            .done(function(response) {
+                if (response.success) {
+                    const task = response.data;
+                    let content = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>基本信息</h6>
+                                <table class="table table-borderless table-sm">
+                                    <tr><td class="text-muted">任务ID:</td><td><code>${task.id}</code></td></tr>
+                                    <tr><td class="text-muted">任务名称:</td><td>${task.name}</td></tr>
+                                    <tr><td class="text-muted">状态:</td><td><span class="badge bg-${getStatusColor(task.state)}">${task.state}</span></td></tr>
+                                    <tr><td class="text-muted">队列:</td><td>${task.queue || 'default'}</td></tr>
+                                    <tr><td class="text-muted">重试次数:</td><td>${task.retries || 0}</td></tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>时间信息</h6>
+                                <table class="table table-borderless table-sm">
+                                    <tr><td class="text-muted">创建时间:</td><td>${formatDateTime(task.created_at)}</td></tr>
+                                    <tr><td class="text-muted">开始时间:</td><td>${task.started_at ? formatDateTime(task.started_at) : '-'}</td></tr>
+                                    <tr><td class="text-muted">完成时间:</td><td>${task.completed_at ? formatDateTime(task.completed_at) : '-'}</td></tr>
+                                    <tr><td class="text-muted">执行时长:</td><td>${task.duration ? task.duration.toFixed(2) + 's' : '-'}</td></tr>
+                                </table>
+                            </div>
+                        </div>
+                    `;
+                    
+                    if (task.args) {
+                        content += `
+                            <div class="mt-3">
+                                <h6>任务参数</h6>
+                                <div class="bg-light p-3 rounded">
+                                    <pre class="mb-0">${JSON.stringify(task.args, null, 2)}</pre>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    if (task.traceback) {
+                        content += `
+                            <div class="mt-3">
+                                <h6 class="text-danger">错误信息</h6>
+                                <div class="alert alert-danger">
+                                    <pre class="mb-0">${task.traceback}</pre>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    $('#taskDetailContent').html(content);
+                } else {
+                    $('#taskDetailContent').html('<div class="alert alert-danger">加载任务详情失败</div>');
+                }
+            })
+            .fail(function() {
+                $('#taskDetailContent').html('<div class="alert alert-danger">加载任务详情失败</div>');
+            })
+            .always(function() {
+                hideLoading($('#taskDetailContent'));
+            });
+    }
+    
+    // 查看任务结果
+    function viewTaskResult(taskId) {
+        showLoading($('#taskResultContent'));
+        $('#taskResultModal').modal('show');
+        
+        $.get(`/api/tasks/${taskId}/result`)
+            .done(function(response) {
+                if (response.success) {
+                    const result = response.data;
+                    let content = '<div class="task-result">';
+                    content += JSON.stringify(result, null, 2);
+                    content += '</div>';
+                    
+                    $('#taskResultContent').html(content);
+                } else {
+                    $('#taskResultContent').html('<div class="alert alert-danger">加载任务结果失败</div>');
+                }
+            })
+            .fail(function() {
+                $('#taskResultContent').html('<div class="alert alert-danger">加载任务结果失败</div>');
+            })
+            .always(function() {
+                hideLoading($('#taskResultContent'));
+            });
+    }
+    
+    // 重试任务
+    function retryTask(taskId) {
+        confirmAction('确定要重试这个任务吗？', function() {
+            $.post(`/api/tasks/${taskId}/retry`)
+                .done(function(response) {
+                    if (response.success) {
+                        showSuccess('任务重试成功');
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        showError(response.error || '重试任务失败');
+                    }
+                })
+                .fail(function() {
+                    showError('重试任务失败');
+                });
+        });
+    }
+    
+    // 取消任务
+    function cancelTask(taskId) {
+        confirmAction('确定要取消这个任务吗？', function() {
+            $.post(`/api/tasks/${taskId}/cancel`)
+                .done(function(response) {
+                    if (response.success) {
+                        showSuccess('任务已取消');
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        showError(response.error || '取消任务失败');
+                    }
+                })
+                .fail(function() {
+                    showError('取消任务失败');
+                });
+        });
+    }
+    
+    // 批量取消
+    function batchCancel() {
+        if (selectedTasks.length === 0) {
+            showWarning('请先选择要取消的任务');
+            return;
+        }
+        
+        confirmAction(`确定要取消选中的 ${selectedTasks.length} 个任务吗？`, function() {
+            $.ajax({
+                url: '/api/tasks/batch/cancel',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ task_ids: selectedTasks })
+            })
+            .done(function(response) {
+                if (response.success) {
+                    showSuccess(`已取消 ${response.data.cancelled_count} 个任务`);
+                    clearSelection();
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showError(response.error || '批量取消任务失败');
+                }
+            })
+            .fail(function() {
+                showError('批量取消任务失败');
+            });
+        });
+    }
+    
+    // 批量重试
+    function batchRetry() {
+        if (selectedTasks.length === 0) {
+            showWarning('请先选择要重试的任务');
+            return;
+        }
+        
+        confirmAction(`确定要重试选中的 ${selectedTasks.length} 个任务吗？`, function() {
+            $.ajax({
+                url: '/api/tasks/batch/retry',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ task_ids: selectedTasks })
+            })
+            .done(function(response) {
+                if (response.success) {
+                    showSuccess(`已重试 ${response.data.retried_count} 个任务`);
+                    clearSelection();
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showError(response.error || '批量重试任务失败');
+                }
+            })
+            .fail(function() {
+                showError('批量重试任务失败');
+            });
+        });
+    }
+    
+    // 清理失败任务
+    function clearFailedTasks() {
+        confirmAction('确定要清理所有失败的任务吗？此操作不可撤销。', function() {
+            $.post('/api/tasks/cleanup/failed')
+                .done(function(response) {
+                    if (response.success) {
+                        showSuccess(`已清理 ${response.data.cleared_count} 个失败任务`);
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        showError(response.error || '清理失败任务失败');
+                    }
+                })
+                .fail(function() {
+                    showError('清理失败任务失败');
+                });
+        });
+    }
+    
+    // 重试失败任务
+    function retryFailedTasks() {
+        confirmAction('确定要重试所有失败的任务吗？', function() {
+            $.post('/api/tasks/retry/failed')
+                .done(function(response) {
+                    if (response.success) {
+                        showSuccess(`已重试 ${response.data.retried_count} 个失败任务`);
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        showError(response.error || '重试失败任务失败');
+                    }
+                })
+                .fail(function() {
+                    showError('重试失败任务失败');
+                });
+        });
+    }
+    
+    // 开始自动刷新
+    function startAutoRefresh() {
+        refreshInterval = setInterval(function() {
+            // 只刷新统计数据，不刷新整个页面
+            refreshTaskStats();
+        }, 30000); // 30秒刷新一次
+    }
+    
+    // 停止自动刷新
+    function stopAutoRefresh() {
+        if (refreshInterval) {
+            clearInterval(refreshInterval);
+        }
+    }
+    
+    // 刷新任务统计
+    function refreshTaskStats() {
+        $.get('/api/tasks/stats')
+            .done(function(response) {
+                if (response.success) {
+                    const stats = response.data;
+                    $('#runningTasksCount').text(stats.running || 0);
+                    $('#successTasksCount').text(stats.success || 0);
+                    $('#failedTasksCount').text(stats.failed || 0);
+                    $('#pendingTasksCount').text(stats.pending || 0);
+                }
+            })
+            .fail(function() {
+                console.error('刷新任务统计失败');
+            });
+    }
+    
+    // 获取状态颜色
+    function getStatusColor(state) {
+        const colors = {
+            'PENDING': 'warning',
+            'STARTED': 'primary',
+            'SUCCESS': 'success',
+            'FAILURE': 'danger',
+            'RETRY': 'info',
+            'REVOKED': 'secondary'
+        };
+        return colors[state] || 'light';
+    }
+    
+    // 加载页面
+    function loadPage(page) {
+        if (page < 1) return;
+        
+        const url = new URL(window.location);
+        url.searchParams.set('page', page);
+        window.location.href = url.toString();
+    }
+</script>
+{% endblock %}

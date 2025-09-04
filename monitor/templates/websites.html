@@ -1,0 +1,833 @@
+{% extends "base.html" %}
+
+{% block title %}网站管理 - 网页监控系统{% endblock %}
+
+{% block page_title %}
+<i class="fas fa-globe me-2"></i>网站管理
+{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+    <button type="button" class="btn btn-outline-primary" onclick="refreshWebsites()">
+        <i class="fas fa-sync-alt"></i> 刷新
+    </button>
+    {% if session.role == 'admin' %}
+    <button type="button" class="btn btn-gradient" data-bs-toggle="modal" data-bs-target="#addWebsiteModal">
+        <i class="fas fa-plus"></i> 添加网站
+    </button>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- 搜索和过滤 -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="input-group">
+            <span class="input-group-text">
+                <i class="fas fa-search"></i>
+            </span>
+            <input type="text" class="form-control" id="searchInput" placeholder="搜索网站名称或URL...">
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="row">
+            <div class="col-md-6">
+                <select class="form-select" id="statusFilter">
+                    <option value="">所有状态</option>
+                    <option value="enabled">已启用</option>
+                    <option value="disabled">已禁用</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <select class="form-select" id="sortBy">
+                    <option value="created_at">创建时间</option>
+                    <option value="name">网站名称</option>
+                    <option value="last_check_at">最后检查</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 网站列表 -->
+<div class="card">
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+        <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-list me-2"></i>网站列表
+            <span class="badge bg-secondary ms-2" id="websiteCount">{{ websites|length }}</span>
+        </h6>
+        <div class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn btn-outline-primary" onclick="selectAll()">
+                全选
+            </button>
+            <button type="button" class="btn btn-outline-secondary" onclick="clearSelection()">
+                清除
+            </button>
+            {% if session.role == 'admin' %}
+            <button type="button" class="btn btn-outline-success" onclick="batchCheck()">
+                批量检查
+            </button>
+            <button type="button" class="btn btn-outline-warning" onclick="batchToggle()">
+                批量切换
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="websitesTable">
+                <thead class="table-light">
+                    <tr>
+                        <th width="40">
+                            <input type="checkbox" class="form-check-input" id="selectAllCheckbox">
+                        </th>
+                        <th>网站信息</th>
+                        <th>状态</th>
+                        <th>检查间隔</th>
+                        <th>最后检查</th>
+                        <th>检查结果</th>
+                        <th width="120">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="websitesTableBody">
+                    {% for website in websites %}
+                    <tr data-website-id="{{ website.id }}">
+                        <td>
+                            <input type="checkbox" class="form-check-input website-checkbox" value="{{ website.id }}">
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="me-3">
+                                    <div class="avatar-circle bg-primary text-white">
+                                        {{ website.name[0].upper() }}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="font-weight-bold">{{ website.name }}</div>
+                                    <small class="text-muted">
+                                        <i class="fas fa-link me-1"></i>
+                                        <a href="{{ website.url }}" target="_blank" class="text-decoration-none">
+                                            {{ website.url[:60] }}{% if website.url|length > 60 %}...{% endif %}
+                                        </a>
+                                    </small>
+                                    {% if website.selector %}
+                                    <br><small class="text-info">
+                                        <i class="fas fa-crosshairs me-1"></i>
+                                        选择器: {{ website.selector[:30] }}{% if website.selector|length > 30 %}...{% endif %}
+                                    </small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="d-flex flex-column">
+                                {% if website.enabled %}
+                                <span class="badge bg-success status-badge mb-1">已启用</span>
+                                {% else %}
+                                <span class="badge bg-secondary status-badge mb-1">已禁用</span>
+                                {% endif %}
+                                
+                                {% if website.use_selenium %}
+                                <span class="badge bg-info status-badge">Selenium</span>
+                                {% else %}
+                                <span class="badge bg-primary status-badge">Requests</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-dark">
+                                {{ website.check_interval }}分钟
+                            </span>
+                        </td>
+                        <td>
+                            {% if website.last_check_at %}
+                            <div>
+                                <small class="text-muted">{{ website.last_check_at | timedelta }}</small>
+                                <br><small class="text-muted">{{ website.last_check_at | datetime }}</small>
+                            </div>
+                            {% else %}
+                            <span class="text-muted">从未检查</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if website.last_status_code %}
+                                {% if website.last_status_code == 200 %}
+                                <span class="badge bg-success">{{ website.last_status_code }}</span>
+                                {% elif website.last_status_code >= 400 %}
+                                <span class="badge bg-danger">{{ website.last_status_code }}</span>
+                                {% else %}
+                                <span class="badge bg-warning">{{ website.last_status_code }}</span>
+                                {% endif %}
+                                
+                                {% if website.last_response_time %}
+                                <br><small class="text-muted">{{ "%.2f" | format(website.last_response_time) }}s</small>
+                                {% endif %}
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <a href="{{ url_for('website_detail', website_id=website.id) }}" 
+                                   class="btn btn-outline-primary btn-sm"
+                                   data-bs-toggle="tooltip" title="查看详情">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                
+                                <button type="button" 
+                                        class="btn btn-outline-success btn-sm"
+                                        onclick="manualCheck({{ website.id }})"
+                                        data-bs-toggle="tooltip" title="手动检查">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>
+                                
+                                {% if session.role == 'admin' %}
+                                <button type="button" 
+                                        class="btn btn-outline-warning btn-sm"
+                                        onclick="toggleWebsite({{ website.id }})"
+                                        data-bs-toggle="tooltip" title="启用/禁用">
+                                    <i class="fas fa-power-off"></i>
+                                </button>
+                                
+                                <button type="button" 
+                                        class="btn btn-outline-secondary btn-sm"
+                                        onclick="editWebsite({{ website.id }})"
+                                        data-bs-toggle="tooltip" title="编辑">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                
+                                <button type="button" 
+                                        class="btn btn-outline-danger btn-sm"
+                                        onclick="deleteWebsite({{ website.id }})"
+                                        data-bs-toggle="tooltip" title="删除">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        {% if not websites %}
+        <div class="text-center py-5">
+            <i class="fas fa-globe fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">暂无网站</h5>
+            <p class="text-muted">点击上方"添加网站"按钮开始监控您的第一个网站</p>
+            {% if session.role == 'admin' %}
+            <button type="button" class="btn btn-gradient" data-bs-toggle="modal" data-bs-target="#addWebsiteModal">
+                <i class="fas fa-plus me-2"></i>添加网站
+            </button>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 分页 -->
+{% if websites and websites|length >= 20 %}
+<nav aria-label="网站列表分页" class="mt-4">
+    <ul class="pagination justify-content-center">
+        <li class="page-item">
+            <a class="page-link" href="#" onclick="loadPage(1)">首页</a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="#" onclick="loadPage(currentPage - 1)">上一页</a>
+        </li>
+        <li class="page-item active">
+            <span class="page-link" id="currentPageSpan">1</span>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="#" onclick="loadPage(currentPage + 1)">下一页</a>
+        </li>
+    </ul>
+</nav>
+{% endif %}
+
+<!-- 添加网站模态框 -->
+{% if session.role == 'admin' %}
+<div class="modal fade" id="addWebsiteModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus me-2"></i>添加网站
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addWebsiteForm">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="websiteName" class="form-label">网站名称 *</label>
+                                <input type="text" class="form-control" id="websiteName" name="name" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="websiteUrl" class="form-label">网站URL *</label>
+                                <input type="url" class="form-control" id="websiteUrl" name="url" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="checkInterval" class="form-label">检查间隔（分钟）</label>
+                                <input type="number" class="form-control" id="checkInterval" name="check_interval" value="60" min="1">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="detectionAlgorithm" class="form-label">检测算法</label>
+                                <select class="form-select" id="detectionAlgorithm" name="detection_algorithm">
+                                    <option value="hash">哈希检测（快速）</option>
+                                    <option value="diff">差异检测（详细）</option>
+                                    <option value="semantic">语义检测（智能）</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="selector" class="form-label">CSS选择器（可选）</label>
+                        <input type="text" class="form-control" id="selector" name="selector" 
+                               placeholder="例如: .content, #main, .article">
+                        <div class="form-text">指定要监控的页面元素，留空则监控整个页面</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="xpath" class="form-label">XPath表达式（可选）</label>
+                        <input type="text" class="form-control" id="xpath" name="xpath" 
+                               placeholder="例如: //div[@class='content']">
+                        <div class="form-text">XPath优先级高于CSS选择器</div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="useSelenium" name="use_selenium">
+                                    <label class="form-check-label" for="useSelenium">
+                                        使用Selenium（适用于JavaScript渲染的页面）
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="notificationEnabled" name="notification_enabled" checked>
+                                    <label class="form-check-label" for="notificationEnabled">
+                                        启用通知
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="notificationEmails" class="form-label">通知邮箱</label>
+                        <input type="text" class="form-control" id="notificationEmails" name="notification_emails" 
+                               placeholder="多个邮箱用逗号分隔">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="webhookUrls" class="form-label">Webhook URLs</label>
+                        <textarea class="form-control" id="webhookUrls" name="webhook_urls" rows="2" 
+                                  placeholder="每行一个URL"></textarea>
+                    </div>
+                    
+                    <!-- 高级设置 -->
+                    <div class="accordion" id="advancedSettings">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="headingAdvanced">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                                        data-bs-target="#collapseAdvanced">
+                                    <i class="fas fa-cog me-2"></i>高级设置
+                                </button>
+                            </h2>
+                            <div id="collapseAdvanced" class="accordion-collapse collapse" 
+                                 data-bs-parent="#advancedSettings">
+                                <div class="accordion-body">
+                                    <div class="mb-3">
+                                        <label for="userAgent" class="form-label">User Agent</label>
+                                        <input type="text" class="form-control" id="userAgent" name="user_agent">
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="proxy" class="form-label">代理服务器</label>
+                                        <input type="text" class="form-control" id="proxy" name="proxy" 
+                                               placeholder="http://proxy:port">
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="headers" class="form-label">自定义请求头</label>
+                                        <textarea class="form-control" id="headers" name="headers" rows="3" 
+                                                  placeholder='{
+  "Authorization": "Bearer token",
+  "Custom-Header": "value"
+}'></textarea>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="cookies" class="form-label">Cookies</label>
+                                        <textarea class="form-control" id="cookies" name="cookies" rows="2" 
+                                                  placeholder='{
+  "session_id": "value",
+  "auth_token": "value"
+}'></textarea>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="notificationThreshold" class="form-label">通知阈值</label>
+                                                <input type="number" class="form-control" id="notificationThreshold" 
+                                                       name="notification_threshold" value="0.1" min="0" max="1" step="0.1">
+                                                <div class="form-text">变化程度超过此值时发送通知（0-1）</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-gradient">添加网站</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑网站模态框 -->
+<div class="modal fade" id="editWebsiteModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit me-2"></i>编辑网站
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editWebsiteForm">
+                <input type="hidden" id="editWebsiteId" name="website_id">
+                <!-- 表单内容与添加网站相同，这里省略 -->
+                <div class="modal-body">
+                    <!-- 复制添加网站的表单内容 -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-gradient">保存更改</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .avatar-circle {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 1.2em;
+    }
+    
+    .status-badge {
+        font-size: 0.7em;
+    }
+    
+    .table td {
+        vertical-align: middle;
+    }
+    
+    .btn-group-sm .btn {
+        padding: 0.25rem 0.4rem;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentPage = 1;
+    let selectedWebsites = [];
+    
+    $(document).ready(function() {
+        // 初始化
+        initializeEventHandlers();
+        updateWebsiteCount();
+        
+        // 搜索功能
+        $('#searchInput').on('input', debounce(filterWebsites, 300));
+        $('#statusFilter, #sortBy').on('change', filterWebsites);
+        
+        // 全选功能
+        $('#selectAllCheckbox').on('change', function() {
+            const isChecked = $(this).is(':checked');
+            $('.website-checkbox').prop('checked', isChecked);
+            updateSelectedWebsites();
+        });
+        
+        // 单选功能
+        $('.website-checkbox').on('change', updateSelectedWebsites);
+    });
+    
+    // 初始化事件处理器
+    function initializeEventHandlers() {
+        // 添加网站表单提交
+        $('#addWebsiteForm').on('submit', function(e) {
+            e.preventDefault();
+            addWebsite();
+        });
+        
+        // 编辑网站表单提交
+        $('#editWebsiteForm').on('submit', function(e) {
+            e.preventDefault();
+            updateWebsite();
+        });
+    }
+    
+    // 防抖函数
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+    
+    // 过滤网站
+    function filterWebsites() {
+        const searchTerm = $('#searchInput').val().toLowerCase();
+        const statusFilter = $('#statusFilter').val();
+        const sortBy = $('#sortBy').val();
+        
+        let rows = Array.from($('#websitesTableBody tr'));
+        
+        // 过滤
+        rows.forEach(row => {
+            const $row = $(row);
+            const name = $row.find('td:nth-child(2) .font-weight-bold').text().toLowerCase();
+            const url = $row.find('td:nth-child(2) a').text().toLowerCase();
+            const isEnabled = $row.find('.badge.bg-success').length > 0;
+            
+            let showRow = true;
+            
+            // 搜索过滤
+            if (searchTerm && !name.includes(searchTerm) && !url.includes(searchTerm)) {
+                showRow = false;
+            }
+            
+            // 状态过滤
+            if (statusFilter === 'enabled' && !isEnabled) {
+                showRow = false;
+            } else if (statusFilter === 'disabled' && isEnabled) {
+                showRow = false;
+            }
+            
+            $row.toggle(showRow);
+        });
+        
+        updateWebsiteCount();
+    }
+    
+    // 更新网站计数
+    function updateWebsiteCount() {
+        const visibleCount = $('#websitesTableBody tr:visible').length;
+        $('#websiteCount').text(visibleCount);
+    }
+    
+    // 更新选中的网站
+    function updateSelectedWebsites() {
+        selectedWebsites = [];
+        $('.website-checkbox:checked').each(function() {
+            selectedWebsites.push(parseInt($(this).val()));
+        });
+        
+        // 更新全选状态
+        const totalCheckboxes = $('.website-checkbox').length;
+        const checkedCheckboxes = $('.website-checkbox:checked').length;
+        
+        $('#selectAllCheckbox').prop('indeterminate', checkedCheckboxes > 0 && checkedCheckboxes < totalCheckboxes);
+        $('#selectAllCheckbox').prop('checked', checkedCheckboxes === totalCheckboxes && totalCheckboxes > 0);
+    }
+    
+    // 全选
+    function selectAll() {
+        $('.website-checkbox:visible').prop('checked', true);
+        updateSelectedWebsites();
+    }
+    
+    // 清除选择
+    function clearSelection() {
+        $('.website-checkbox').prop('checked', false);
+        $('#selectAllCheckbox').prop('checked', false);
+        updateSelectedWebsites();
+    }
+    
+    // 刷新网站列表
+    function refreshWebsites() {
+        location.reload();
+    }
+    
+    // 添加网站
+    function addWebsite() {
+        const formData = new FormData($('#addWebsiteForm')[0]);
+        const data = {};
+        
+        // 转换表单数据
+        for (let [key, value] of formData.entries()) {
+            if (key === 'notification_emails' && value) {
+                data[key] = value.split(',').map(email => email.trim()).filter(email => email);
+            } else if (key === 'webhook_urls' && value) {
+                data[key] = value.split('\n').map(url => url.trim()).filter(url => url);
+            } else if (key === 'headers' && value) {
+                try {
+                    data[key] = JSON.parse(value);
+                } catch (e) {
+                    showError('请求头格式错误，请使用有效的JSON格式');
+                    return;
+                }
+            } else if (key === 'cookies' && value) {
+                try {
+                    data[key] = JSON.parse(value);
+                } catch (e) {
+                    showError('Cookies格式错误，请使用有效的JSON格式');
+                    return;
+                }
+            } else if (key === 'use_selenium' || key === 'notification_enabled') {
+                data[key] = $('#' + key.replace('_', '')).is(':checked');
+            } else if (key === 'check_interval' || key === 'notification_threshold') {
+                data[key] = parseFloat(value) || (key === 'check_interval' ? 60 : 0.1);
+            } else {
+                data[key] = value;
+            }
+        }
+        
+        const $submitBtn = $('#addWebsiteForm button[type="submit"]');
+        showLoading($submitBtn);
+        
+        $.ajax({
+            url: '/api/websites',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(data)
+        })
+        .done(function(response) {
+            if (response.success) {
+                showSuccess('网站添加成功');
+                $('#addWebsiteModal').modal('hide');
+                $('#addWebsiteForm')[0].reset();
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showError(response.error || '添加网站失败');
+            }
+        })
+        .fail(function() {
+            showError('添加网站失败');
+        })
+        .always(function() {
+            hideLoading($submitBtn);
+        });
+    }
+    
+    // 编辑网站
+    function editWebsite(websiteId) {
+        // 这里应该加载网站数据并填充到编辑表单
+        // 由于篇幅限制，这里只显示模态框
+        $('#editWebsiteId').val(websiteId);
+        $('#editWebsiteModal').modal('show');
+    }
+    
+    // 更新网站
+    function updateWebsite() {
+        // 实现更新逻辑
+        showInfo('更新功能开发中...');
+    }
+    
+    // 手动检查网站
+    function manualCheck(websiteId) {
+        const $btn = $(event.target).closest('button');
+        showLoading($btn);
+        
+        $.post(`/api/websites/${websiteId}/check`)
+            .done(function(response) {
+                if (response.success) {
+                    showSuccess('检查任务已提交');
+                    
+                    // 检查任务状态
+                    checkTaskStatus(response.data.task_id, function() {
+                        // 刷新该行数据
+                        refreshWebsiteRow(websiteId);
+                    });
+                } else {
+                    showError(response.error || '提交检查任务失败');
+                }
+            })
+            .fail(function() {
+                showError('提交检查任务失败');
+            })
+            .always(function() {
+                hideLoading($btn);
+            });
+    }
+    
+    // 切换网站状态
+    function toggleWebsite(websiteId) {
+        const $btn = $(event.target).closest('button');
+        showLoading($btn);
+        
+        $.post(`/api/websites/${websiteId}/toggle`)
+            .done(function(response) {
+                if (response.success) {
+                    showSuccess('网站状态已更新');
+                    
+                    // 更新状态显示
+                    const $row = $(`tr[data-website-id="${websiteId}"]`);
+                    const $statusBadge = $row.find('.status-badge').first();
+                    
+                    if (response.data.enabled) {
+                        $statusBadge.removeClass('bg-secondary').addClass('bg-success').text('已启用');
+                    } else {
+                        $statusBadge.removeClass('bg-success').addClass('bg-secondary').text('已禁用');
+                    }
+                } else {
+                    showError(response.error || '更新网站状态失败');
+                }
+            })
+            .fail(function() {
+                showError('更新网站状态失败');
+            })
+            .always(function() {
+                hideLoading($btn);
+            });
+    }
+    
+    // 删除网站
+    function deleteWebsite(websiteId) {
+        confirmAction('确定要删除这个网站吗？此操作不可撤销。', function() {
+            $.ajax({
+                url: `/api/websites/${websiteId}`,
+                method: 'DELETE'
+            })
+            .done(function(response) {
+                if (response.success) {
+                    showSuccess('网站已删除');
+                    $(`tr[data-website-id="${websiteId}"]`).fadeOut(function() {
+                        $(this).remove();
+                        updateWebsiteCount();
+                    });
+                } else {
+                    showError(response.error || '删除网站失败');
+                }
+            })
+            .fail(function() {
+                showError('删除网站失败');
+            });
+        });
+    }
+    
+    // 批量检查
+    function batchCheck() {
+        if (selectedWebsites.length === 0) {
+            showWarning('请先选择要检查的网站');
+            return;
+        }
+        
+        confirmAction(`确定要检查选中的 ${selectedWebsites.length} 个网站吗？`, function() {
+            $.ajax({
+                url: '/api/batch/check',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ website_ids: selectedWebsites })
+            })
+            .done(function(response) {
+                if (response.success) {
+                    showSuccess(`已提交 ${response.data.website_count} 个网站的批量检查任务`);
+                    clearSelection();
+                } else {
+                    showError(response.error || '提交批量检查任务失败');
+                }
+            })
+            .fail(function() {
+                showError('提交批量检查任务失败');
+            });
+        });
+    }
+    
+    // 批量切换状态
+    function batchToggle() {
+        if (selectedWebsites.length === 0) {
+            showWarning('请先选择要操作的网站');
+            return;
+        }
+        
+        confirmAction(`确定要切换选中的 ${selectedWebsites.length} 个网站的状态吗？`, function() {
+            // 实现批量切换逻辑
+            showInfo('批量切换功能开发中...');
+        });
+    }
+    
+    // 检查任务状态
+    function checkTaskStatus(taskId, callback) {
+        const checkStatus = () => {
+            $.get(`/api/tasks/${taskId}/status`)
+                .done(function(response) {
+                    if (response.success) {
+                        const status = response.data;
+                        
+                        if (status.state === 'SUCCESS') {
+                            showSuccess('检查完成');
+                            if (callback) callback();
+                        } else if (status.state === 'FAILURE') {
+                            showError('检查失败: ' + (status.result || '未知错误'));
+                        } else if (status.state === 'PENDING' || status.state === 'STARTED') {
+                            // 继续检查
+                            setTimeout(checkStatus, 2000);
+                        }
+                    }
+                })
+                .fail(function() {
+                    console.error('检查任务状态失败');
+                });
+        };
+        
+        setTimeout(checkStatus, 1000);
+    }
+    
+    // 刷新网站行数据
+    function refreshWebsiteRow(websiteId) {
+        // 这里可以实现单行数据刷新
+        // 为简化，直接刷新整个页面
+        setTimeout(() => location.reload(), 2000);
+    }
+    
+    // 加载页面
+    function loadPage(page) {
+        if (page < 1) return;
+        
+        const url = new URL(window.location);
+        url.searchParams.set('page', page);
+        window.location.href = url.toString();
+    }
+</script>
+{% endblock %}

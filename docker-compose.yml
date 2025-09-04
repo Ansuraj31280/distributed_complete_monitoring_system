@@ -1,0 +1,179 @@
+version: '3.8'
+
+services:
+  # PostgreSQL数据库
+  postgres:
+    image: postgres:13
+    container_name: monitor_postgres
+    environment:
+      POSTGRES_DB: monitor
+      POSTGRES_USER: monitor
+      POSTGRES_PASSWORD: monitor123
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - monitor_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U monitor -d monitor"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis缓存
+  redis:
+    image: redis:6-alpine
+    container_name: monitor_redis
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - monitor_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Web应用
+  web:
+    build: .
+    container_name: monitor_web
+    environment:
+      - DATABASE_URL=postgresql://monitor:monitor123@postgres:5432/monitor
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - SECRET_KEY=your-secret-key-change-in-production
+      - JWT_SECRET_KEY=your-jwt-secret-change-in-production
+      - FLASK_ENV=production
+      - PYTHONPATH=/app
+    volumes:
+      - ./logs:/app/logs
+      - ./config:/app/config
+      - ./data:/app/data
+    ports:
+      - "5000:5000"
+    networks:
+      - monitor_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    command: >
+      sh -c "python main.py init-db &&
+             python main.py web --host 0.0.0.0 --port 5000"
+
+  # Celery工作进程
+  worker:
+    build: .
+    container_name: monitor_worker
+    environment:
+      - DATABASE_URL=postgresql://monitor:monitor123@postgres:5432/monitor
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - SECRET_KEY=your-secret-key-change-in-production
+      - PYTHONPATH=/app
+    volumes:
+      - ./logs:/app/logs
+      - ./config:/app/config
+      - ./data:/app/data
+    networks:
+      - monitor_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    command: python main.py worker --concurrency 4 --loglevel info
+
+  # Celery定时任务调度器
+  beat:
+    build: .
+    container_name: monitor_beat
+    environment:
+      - DATABASE_URL=postgresql://monitor:monitor123@postgres:5432/monitor
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - SECRET_KEY=your-secret-key-change-in-production
+      - PYTHONPATH=/app
+    volumes:
+      - ./logs:/app/logs
+      - ./config:/app/config
+      - ./data:/app/data
+    networks:
+      - monitor_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    command: python main.py beat --loglevel info
+
+  # Flower监控界面（可选）
+  flower:
+    build: .
+    container_name: monitor_flower
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - FLOWER_PORT=5555
+      - FLOWER_BASIC_AUTH=admin:flower123
+    ports:
+      - "5555:5555"
+    networks:
+      - monitor_network
+    depends_on:
+      - redis
+    restart: unless-stopped
+    command: celery -A monitor.tasks flower --port=5555
+
+  # Nginx反向代理（可选）
+  nginx:
+    image: nginx:alpine
+    container_name: monitor_nginx
+    volumes:
+      - ./logs/nginx:/var/log/nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - monitor_network
+    depends_on:
+      - web
+    restart: unless-stopped
+    profiles:
+      - production
+    command: >
+      sh -c "echo 'events { worker_connections 1024; } http { server { listen 80; location / { proxy_pass http://web:5000; proxy_set_header Host \$$host; proxy_set_header X-Real-IP \$$remote_addr; } } }' > /etc/nginx/nginx.conf && nginx -g 'daemon off;'"
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  monitor_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

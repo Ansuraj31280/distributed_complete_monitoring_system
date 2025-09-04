@@ -1,0 +1,1186 @@
+{% extends "base.html" %}
+
+{% block title %}系统设置 - 网页监控系统{% endblock %}
+
+{% block page_title %}
+<i class="fas fa-cogs me-2"></i>系统设置
+{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+    <button type="button" class="btn btn-outline-primary" onclick="refreshSystemInfo()">
+        <i class="fas fa-sync-alt"></i> 刷新
+    </button>
+    {% if session.role == 'admin' %}
+    <button type="button" class="btn btn-outline-success" onclick="saveAllSettings()">
+        <i class="fas fa-save"></i> 保存所有设置
+    </button>
+    <button type="button" class="btn btn-outline-warning" onclick="restartSystem()">
+        <i class="fas fa-power-off"></i> 重启系统
+    </button>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- 系统状态概览 -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-server me-2"></i>系统状态
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="h4 mb-0 font-weight-bold text-success" id="systemStatus">
+                                {{ system_info.status or '运行中' }}
+                            </div>
+                            <div class="text-muted">系统状态</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="h4 mb-0 font-weight-bold text-info" id="uptime">
+                                {{ system_info.uptime or '0天' }}
+                            </div>
+                            <div class="text-muted">运行时间</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="h4 mb-0 font-weight-bold text-warning" id="version">
+                                {{ system_info.version or '1.0.0' }}
+                            </div>
+                            <div class="text-muted">系统版本</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="h4 mb-0 font-weight-bold text-primary" id="activeWorkers">
+                                {{ system_info.workers or 0 }}
+                            </div>
+                            <div class="text-muted">活跃工作进程</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 系统资源监控 -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-microchip me-2"></i>CPU 使用率
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-grow-1">
+                        <div class="progress mb-2">
+                            <div class="progress-bar bg-primary" id="cpuProgress" 
+                                 style="width: {{ system_info.cpu_percent or 0 }}%"></div>
+                        </div>
+                        <div class="text-muted small">
+                            <span id="cpuPercent">{{ "%.1f" | format(system_info.cpu_percent or 0) }}%</span>
+                        </div>
+                    </div>
+                    <div class="ms-3">
+                        <i class="fas fa-microchip fa-2x text-primary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-success">
+                    <i class="fas fa-memory me-2"></i>内存使用率
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-grow-1">
+                        <div class="progress mb-2">
+                            <div class="progress-bar bg-success" id="memoryProgress" 
+                                 style="width: {{ system_info.memory_percent or 0 }}%"></div>
+                        </div>
+                        <div class="text-muted small">
+                            <span id="memoryPercent">{{ "%.1f" | format(system_info.memory_percent or 0) }}%</span>
+                            (<span id="memoryUsed">{{ system_info.memory_used | filesizeformat }}</span> / 
+                             <span id="memoryTotal">{{ system_info.memory_total | filesizeformat }}</span>)
+                        </div>
+                    </div>
+                    <div class="ms-3">
+                        <i class="fas fa-memory fa-2x text-success"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-warning">
+                    <i class="fas fa-hdd me-2"></i>磁盘使用率
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="flex-grow-1">
+                        <div class="progress mb-2">
+                            <div class="progress-bar bg-warning" id="diskProgress" 
+                                 style="width: {{ system_info.disk_percent or 0 }}%"></div>
+                        </div>
+                        <div class="text-muted small">
+                            <span id="diskPercent">{{ "%.1f" | format(system_info.disk_percent or 0) }}%</span>
+                            (<span id="diskUsed">{{ system_info.disk_used | filesizeformat }}</span> / 
+                             <span id="diskTotal">{{ system_info.disk_total | filesizeformat }}</span>)
+                        </div>
+                    </div>
+                    <div class="ms-3">
+                        <i class="fas fa-hdd fa-2x text-warning"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 设置选项卡 -->
+<div class="card">
+    <div class="card-header py-3">
+        <ul class="nav nav-tabs card-header-tabs" id="settingsTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="general-tab" data-bs-toggle="tab" 
+                        data-bs-target="#general" type="button" role="tab">
+                    <i class="fas fa-cog me-2"></i>常规设置
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="database-tab" data-bs-toggle="tab" 
+                        data-bs-target="#database" type="button" role="tab">
+                    <i class="fas fa-database me-2"></i>数据库设置
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="celery-tab" data-bs-toggle="tab" 
+                        data-bs-target="#celery" type="button" role="tab">
+                    <i class="fas fa-tasks me-2"></i>任务队列设置
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="notification-tab" data-bs-toggle="tab" 
+                        data-bs-target="#notification" type="button" role="tab">
+                    <i class="fas fa-bell me-2"></i>通知设置
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="monitoring-tab" data-bs-toggle="tab" 
+                        data-bs-target="#monitoring" type="button" role="tab">
+                    <i class="fas fa-chart-line me-2"></i>监控设置
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="security-tab" data-bs-toggle="tab" 
+                        data-bs-target="#security" type="button" role="tab">
+                    <i class="fas fa-shield-alt me-2"></i>安全设置
+                </button>
+            </li>
+        </ul>
+    </div>
+    
+    <div class="card-body">
+        <div class="tab-content" id="settingsTabContent">
+            <!-- 常规设置 -->
+            <div class="tab-pane fade show active" id="general" role="tabpanel">
+                <form id="generalSettingsForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="systemName" class="form-label">系统名称</label>
+                                <input type="text" class="form-control" id="systemName" 
+                                       value="{{ config.system_name or '网页监控系统' }}">
+                                <div class="form-text">显示在页面标题和通知中的系统名称</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="defaultCheckInterval" class="form-label">默认检查间隔（分钟）</label>
+                                <input type="number" class="form-control" id="defaultCheckInterval" 
+                                       value="{{ config.default_check_interval or 60 }}" min="1" max="10080">
+                                <div class="form-text">新添加网站的默认检查间隔</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="maxRetries" class="form-label">最大重试次数</label>
+                                <input type="number" class="form-control" id="maxRetries" 
+                                       value="{{ config.max_retries or 3 }}" min="0" max="10">
+                                <div class="form-text">任务失败时的最大重试次数</div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="timezone" class="form-label">时区</label>
+                                <select class="form-select" id="timezone">
+                                    <option value="Asia/Shanghai" {{ 'selected' if config.timezone == 'Asia/Shanghai' else '' }}>Asia/Shanghai</option>
+                                    <option value="UTC" {{ 'selected' if config.timezone == 'UTC' else '' }}>UTC</option>
+                                    <option value="America/New_York" {{ 'selected' if config.timezone == 'America/New_York' else '' }}>America/New_York</option>
+                                    <option value="Europe/London" {{ 'selected' if config.timezone == 'Europe/London' else '' }}>Europe/London</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="logLevel" class="form-label">日志级别</label>
+                                <select class="form-select" id="logLevel">
+                                    <option value="DEBUG" {{ 'selected' if config.log_level == 'DEBUG' else '' }}>DEBUG</option>
+                                    <option value="INFO" {{ 'selected' if config.log_level == 'INFO' else '' }}>INFO</option>
+                                    <option value="WARNING" {{ 'selected' if config.log_level == 'WARNING' else '' }}>WARNING</option>
+                                    <option value="ERROR" {{ 'selected' if config.log_level == 'ERROR' else '' }}>ERROR</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="enableMetrics" 
+                                           {{ 'checked' if config.enable_metrics else '' }}>
+                                    <label class="form-check-label" for="enableMetrics">
+                                        启用系统指标收集
+                                    </label>
+                                    <div class="form-text">收集CPU、内存、磁盘等系统指标</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>保存常规设置
+                        </button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- 数据库设置 -->
+            <div class="tab-pane fade" id="database" role="tabpanel">
+                <form id="databaseSettingsForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="dbHost" class="form-label">数据库主机</label>
+                                <input type="text" class="form-control" id="dbHost" 
+                                       value="{{ config.database.host or 'localhost' }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="dbPort" class="form-label">数据库端口</label>
+                                <input type="number" class="form-control" id="dbPort" 
+                                       value="{{ config.database.port or 5432 }}" min="1" max="65535">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="dbName" class="form-label">数据库名称</label>
+                                <input type="text" class="form-control" id="dbName" 
+                                       value="{{ config.database.name or 'monitor' }}">
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="dbUser" class="form-label">数据库用户</label>
+                                <input type="text" class="form-control" id="dbUser" 
+                                       value="{{ config.database.user or 'monitor' }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="dbPassword" class="form-label">数据库密码</label>
+                                <input type="password" class="form-control" id="dbPassword" 
+                                       value="{{ config.database.password or '' }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="dbPoolSize" class="form-label">连接池大小</label>
+                                <input type="number" class="form-control" id="dbPoolSize" 
+                                       value="{{ config.database.pool_size or 10 }}" min="1" max="100">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-outline-info" onclick="testDatabaseConnection()">
+                            <i class="fas fa-plug me-2"></i>测试数据库连接
+                        </button>
+                        <span id="dbTestResult" class="ms-3"></span>
+                    </div>
+                    
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>保存数据库设置
+                        </button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- 任务队列设置 -->
+            <div class="tab-pane fade" id="celery" role="tabpanel">
+                <form id="celerySettingsForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="redisHost" class="form-label">Redis 主机</label>
+                                <input type="text" class="form-control" id="redisHost" 
+                                       value="{{ config.celery.broker_host or 'localhost' }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="redisPort" class="form-label">Redis 端口</label>
+                                <input type="number" class="form-control" id="redisPort" 
+                                       value="{{ config.celery.broker_port or 6379 }}" min="1" max="65535">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="redisDb" class="form-label">Redis 数据库</label>
+                                <input type="number" class="form-control" id="redisDb" 
+                                       value="{{ config.celery.broker_db or 0 }}" min="0" max="15">
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="workerConcurrency" class="form-label">工作进程并发数</label>
+                                <input type="number" class="form-control" id="workerConcurrency" 
+                                       value="{{ config.celery.worker_concurrency or 4 }}" min="1" max="32">
+                                <div class="form-text">每个工作进程的并发任务数</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="taskTimeLimit" class="form-label">任务超时时间（秒）</label>
+                                <input type="number" class="form-control" id="taskTimeLimit" 
+                                       value="{{ config.celery.task_time_limit or 300 }}" min="30" max="3600">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="resultExpires" class="form-label">结果过期时间（秒）</label>
+                                <input type="number" class="form-control" id="resultExpires" 
+                                       value="{{ config.celery.result_expires or 3600 }}" min="300" max="86400">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-outline-info" onclick="testRedisConnection()">
+                            <i class="fas fa-plug me-2"></i>测试 Redis 连接
+                        </button>
+                        <span id="redisTestResult" class="ms-3"></span>
+                    </div>
+                    
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>保存队列设置
+                        </button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- 通知设置 -->
+            <div class="tab-pane fade" id="notification" role="tabpanel">
+                <form id="notificationSettingsForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="mb-3">邮件通知设置</h6>
+                            
+                            <div class="mb-3">
+                                <label for="smtpHost" class="form-label">SMTP 服务器</label>
+                                <input type="text" class="form-control" id="smtpHost" 
+                                       value="{{ config.notification.email_smtp_server or '' }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="smtpPort" class="form-label">SMTP 端口</label>
+                                <input type="number" class="form-control" id="smtpPort" 
+                                       value="{{ config.notification.email_smtp_port or 587 }}" min="1" max="65535">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="smtpUser" class="form-label">SMTP 用户名</label>
+                                <input type="text" class="form-control" id="smtpUser" 
+                                       value="{{ config.notification.email_username or '' }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="smtpPassword" class="form-label">SMTP 密码</label>
+                                <input type="password" class="form-control" id="smtpPassword" 
+                                       value="{{ config.notification.email_password or '' }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="smtpTls" 
+                                           {{ 'checked' if config.notification.email_enabled else '' }}>
+                                    <label class="form-check-label" for="smtpTls">
+                                        使用 TLS 加密
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h6 class="mb-3">钉钉通知设置</h6>
+                            
+                            <div class="mb-3">
+                                <label for="dingtalkWebhook" class="form-label">钉钉 Webhook URL</label>
+                                <input type="url" class="form-control" id="dingtalkWebhook" 
+                                       value="{{ config.notification.dingtalk_webhook_url or '' }}">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="dingtalkSecret" class="form-label">钉钉签名密钥</label>
+                                <input type="password" class="form-control" id="dingtalkSecret" 
+                                       value="{{ config.notification.dingtalk_secret or '' }}">
+                            </div>
+                            
+                            <h6 class="mb-3 mt-4">通知频率限制</h6>
+                            
+                            <div class="mb-3">
+                                <label for="notificationCooldown" class="form-label">通知冷却时间（分钟）</label>
+                                <input type="number" class="form-control" id="notificationCooldown" 
+                                       value="{{ config.notification.medium_priority_interval or 30 }}" min="1" max="1440">
+                                <div class="form-text">同一网站两次通知之间的最小间隔</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="maxNotificationsPerHour" class="form-label">每小时最大通知数</label>
+                                <input type="number" class="form-control" id="maxNotificationsPerHour" 
+                                       value="{{ config.notification.high_priority_interval or 10 }}" min="1" max="100">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-outline-info" onclick="testEmailNotification()">
+                            <i class="fas fa-envelope me-2"></i>测试邮件通知
+                        </button>
+                        <button type="button" class="btn btn-outline-info ms-2" onclick="testDingtalkNotification()">
+                            <i class="fas fa-comment me-2"></i>测试钉钉通知
+                        </button>
+                    </div>
+                    
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>保存通知设置
+                        </button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- 监控设置 -->
+            <div class="tab-pane fade" id="monitoring" role="tabpanel">
+                <form id="monitoringSettingsForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="mb-3">数据保留策略</h6>
+                            
+                            <div class="mb-3">
+                                <label for="contentRetentionDays" class="form-label">网页内容保留天数</label>
+                                <input type="number" class="form-control" id="contentRetentionDays" 
+                                       value="{{ config.monitoring.content_retention_days or 30 }}" min="1" max="365">
+                                <div class="form-text">超过此天数的网页内容将被清理</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="logRetentionDays" class="form-label">日志保留天数</label>
+                                <input type="number" class="form-control" id="logRetentionDays" 
+                                       value="{{ config.monitoring.log_retention_days or 7 }}" min="1" max="90">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="metricsRetentionDays" class="form-label">指标数据保留天数</label>
+                                <input type="number" class="form-control" id="metricsRetentionDays" 
+                                       value="{{ config.monitoring.metrics_retention_days or 90 }}" min="1" max="365">
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h6 class="mb-3">性能设置</h6>
+                            
+                            <div class="mb-3">
+                                <label for="maxConcurrentFetches" class="form-label">最大并发抓取数</label>
+                                <input type="number" class="form-control" id="maxConcurrentFetches" 
+                                       value="{{ config.monitoring.max_concurrent_fetches or 10 }}" min="1" max="50">
+                                <div class="form-text">同时进行的网页抓取任务数量上限</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="requestTimeout" class="form-label">请求超时时间（秒）</label>
+                                <input type="number" class="form-control" id="requestTimeout" 
+                                       value="{{ config.monitoring.request_timeout or 30 }}" min="5" max="300">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="userAgentRotationInterval" class="form-label">User-Agent 轮换间隔（小时）</label>
+                                <input type="number" class="form-control" id="userAgentRotationInterval" 
+                                       value="{{ config.monitoring.user_agent_rotation_hours or 24 }}" min="1" max="168">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="enableProxyRotation" 
+                                           {{ 'checked' if config.monitoring.enable_proxy_rotation else '' }}>
+                                    <label class="form-check-label" for="enableProxyRotation">
+                                        启用代理轮换
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>保存监控设置
+                        </button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- 安全设置 -->
+            <div class="tab-pane fade" id="security" role="tabpanel">
+                <form id="securitySettingsForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="mb-3">访问控制</h6>
+                            
+                            <div class="mb-3">
+                                <label for="sessionTimeout" class="form-label">会话超时时间（分钟）</label>
+                                <input type="number" class="form-control" id="sessionTimeout" 
+                                       value="{{ 60 }}" min="5" max="1440">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="maxLoginAttempts" class="form-label">最大登录尝试次数</label>
+                                <input type="number" class="form-control" id="maxLoginAttempts" 
+                                       value="{{ 5 }}" min="1" max="20">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="lockoutDuration" class="form-label">账户锁定时间（分钟）</label>
+                                <input type="number" class="form-control" id="lockoutDuration" 
+                                       value="{{ 30 }}" min="1" max="1440">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="enableTwoFactor" 
+                                           {{ 'checked' if False else '' }}>
+                                    <label class="form-check-label" for="enableTwoFactor">
+                                        启用双因素认证
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h6 class="mb-3">API 安全</h6>
+                            
+                            <div class="mb-3">
+                                <label for="apiRateLimit" class="form-label">API 速率限制（请求/分钟）</label>
+                                <input type="number" class="form-control" id="apiRateLimit" 
+                                       value="{{ 100 }}" min="10" max="1000">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="allowedIps" class="form-label">允许的IP地址</label>
+                                <textarea class="form-control" id="allowedIps" rows="3" 
+                                          placeholder="每行一个IP地址或CIDR，留空表示允许所有IP">{{ '' }}</textarea>
+                                <div class="form-text">例如：192.168.1.0/24 或 10.0.0.1</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="enableHttpsOnly" 
+                                           {{ 'checked' if False else '' }}>
+                                    <label class="form-check-label" for="enableHttpsOnly">
+                                        仅允许 HTTPS 访问
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="enableCsrfProtection" 
+                                           {{ 'checked' if True else '' }}>
+                                    <label class="form-check-label" for="enableCsrfProtection">
+                                        启用 CSRF 保护
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>保存安全设置
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 系统操作 -->
+{% if session.role == 'admin' %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark py-3">
+                <h6 class="m-0 font-weight-bold">
+                    <i class="fas fa-exclamation-triangle me-2"></i>系统操作
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <button type="button" class="btn btn-outline-info w-100" onclick="exportConfig()">
+                            <i class="fas fa-download me-2"></i>导出配置
+                        </button>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="button" class="btn btn-outline-warning w-100" onclick="importConfig()">
+                            <i class="fas fa-upload me-2"></i>导入配置
+                        </button>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="button" class="btn btn-outline-danger w-100" onclick="clearAllData()">
+                            <i class="fas fa-trash me-2"></i>清空所有数据
+                        </button>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="button" class="btn btn-outline-secondary w-100" onclick="resetToDefaults()">
+                            <i class="fas fa-undo me-2"></i>恢复默认设置
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- 配置导入模态框 -->
+<div class="modal fade" id="importConfigModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-upload me-2"></i>导入配置
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="configFile" class="form-label">选择配置文件</label>
+                    <input type="file" class="form-control" id="configFile" accept=".json,.yaml,.yml">
+                    <div class="form-text">支持 JSON 和 YAML 格式的配置文件</div>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>警告：</strong>导入配置将覆盖当前所有设置，请确保配置文件正确。
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-warning" onclick="doImportConfig()">
+                    <i class="fas fa-upload me-2"></i>导入
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .progress {
+        height: 8px;
+    }
+    
+    .nav-tabs .nav-link {
+        border: none;
+        border-bottom: 2px solid transparent;
+    }
+    
+    .nav-tabs .nav-link.active {
+        border-bottom-color: #007bff;
+        background-color: transparent;
+    }
+    
+    .form-text {
+        font-size: 0.875em;
+    }
+    
+    .card-header-tabs {
+        margin-bottom: -1px;
+    }
+    
+    .border-warning {
+        border-color: #ffc107 !important;
+    }
+    
+    .bg-warning {
+        background-color: #ffc107 !important;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // 初始化表单提交处理
+        initializeFormHandlers();
+        
+        // 开始自动刷新系统信息
+        startSystemInfoRefresh();
+    });
+    
+    // 初始化表单处理器
+    function initializeFormHandlers() {
+        $('#generalSettingsForm').on('submit', function(e) {
+            e.preventDefault();
+            saveGeneralSettings();
+        });
+        
+        $('#databaseSettingsForm').on('submit', function(e) {
+            e.preventDefault();
+            saveDatabaseSettings();
+        });
+        
+        $('#celerySettingsForm').on('submit', function(e) {
+            e.preventDefault();
+            saveCelerySettings();
+        });
+        
+        $('#notificationSettingsForm').on('submit', function(e) {
+            e.preventDefault();
+            saveNotificationSettings();
+        });
+        
+        $('#monitoringSettingsForm').on('submit', function(e) {
+            e.preventDefault();
+            saveMonitoringSettings();
+        });
+        
+        $('#securitySettingsForm').on('submit', function(e) {
+            e.preventDefault();
+            saveSecuritySettings();
+        });
+    }
+    
+    // 保存常规设置
+    function saveGeneralSettings() {
+        const settings = {
+            system_name: $('#systemName').val(),
+            default_check_interval: parseInt($('#defaultCheckInterval').val()),
+            max_retries: parseInt($('#maxRetries').val()),
+            timezone: $('#timezone').val(),
+            log_level: $('#logLevel').val(),
+            enable_metrics: $('#enableMetrics').is(':checked')
+        };
+        
+        saveSettings('general', settings);
+    }
+    
+    // 保存数据库设置
+    function saveDatabaseSettings() {
+        const settings = {
+            host: $('#dbHost').val(),
+            port: parseInt($('#dbPort').val()),
+            name: $('#dbName').val(),
+            user: $('#dbUser').val(),
+            password: $('#dbPassword').val(),
+            pool_size: parseInt($('#dbPoolSize').val())
+        };
+        
+        saveSettings('database', settings);
+    }
+    
+    // 保存 Celery 设置
+    function saveCelerySettings() {
+        const settings = {
+            broker_host: $('#redisHost').val(),
+            broker_port: parseInt($('#redisPort').val()),
+            broker_db: parseInt($('#redisDb').val()),
+            worker_concurrency: parseInt($('#workerConcurrency').val()),
+            task_time_limit: parseInt($('#taskTimeLimit').val()),
+            result_expires: parseInt($('#resultExpires').val())
+        };
+        
+        saveSettings('celery', settings);
+    }
+    
+    // 保存通知设置
+    function saveNotificationSettings() {
+        const settings = {
+            email: {
+                smtp_host: $('#smtpHost').val(),
+                smtp_port: parseInt($('#smtpPort').val()),
+                smtp_user: $('#smtpUser').val(),
+                smtp_password: $('#smtpPassword').val(),
+                use_tls: $('#smtpTls').is(':checked')
+            },
+            dingtalk: {
+                webhook_url: $('#dingtalkWebhook').val(),
+                secret: $('#dingtalkSecret').val()
+            },
+            rate_limit: {
+                cooldown_minutes: parseInt($('#notificationCooldown').val()),
+                max_per_hour: parseInt($('#maxNotificationsPerHour').val())
+            }
+        };
+        
+        saveSettings('notification', settings);
+    }
+    
+    // 保存监控设置
+    function saveMonitoringSettings() {
+        const settings = {
+            content_retention_days: parseInt($('#contentRetentionDays').val()),
+            log_retention_days: parseInt($('#logRetentionDays').val()),
+            metrics_retention_days: parseInt($('#metricsRetentionDays').val()),
+            max_concurrent_fetches: parseInt($('#maxConcurrentFetches').val()),
+            request_timeout: parseInt($('#requestTimeout').val()),
+            user_agent_rotation_hours: parseInt($('#userAgentRotationInterval').val()),
+            enable_proxy_rotation: $('#enableProxyRotation').is(':checked')
+        };
+        
+        saveSettings('monitoring', settings);
+    }
+    
+    // 保存安全设置
+    function saveSecuritySettings() {
+        const allowedIps = $('#allowedIps').val().split('\n')
+            .map(ip => ip.trim())
+            .filter(ip => ip.length > 0);
+            
+        const settings = {
+            session_timeout_minutes: parseInt($('#sessionTimeout').val()),
+            max_login_attempts: parseInt($('#maxLoginAttempts').val()),
+            lockout_duration_minutes: parseInt($('#lockoutDuration').val()),
+            enable_two_factor: $('#enableTwoFactor').is(':checked'),
+            api_rate_limit_per_minute: parseInt($('#apiRateLimit').val()),
+            allowed_ips: allowedIps,
+            https_only: $('#enableHttpsOnly').is(':checked'),
+            enable_csrf_protection: $('#enableCsrfProtection').is(':checked')
+        };
+        
+        saveSettings('security', settings);
+    }
+    
+    // 通用保存设置函数
+    function saveSettings(category, settings) {
+        $.ajax({
+            url: `/api/settings/${category}`,
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(settings)
+        })
+        .done(function(response) {
+            if (response.success) {
+                showSuccess(`${category} 设置保存成功`);
+            } else {
+                showError(response.error || '保存设置失败');
+            }
+        })
+        .fail(function() {
+            showError('保存设置失败');
+        });
+    }
+    
+    // 保存所有设置
+    function saveAllSettings() {
+        confirmAction('确定要保存所有设置吗？', function() {
+            saveGeneralSettings();
+            saveDatabaseSettings();
+            saveCelerySettings();
+            saveNotificationSettings();
+            saveMonitoringSettings();
+            saveSecuritySettings();
+            
+            showSuccess('所有设置已保存');
+        });
+    }
+    
+    // 测试数据库连接
+    function testDatabaseConnection() {
+        const settings = {
+            host: $('#dbHost').val(),
+            port: parseInt($('#dbPort').val()),
+            name: $('#dbName').val(),
+            user: $('#dbUser').val(),
+            password: $('#dbPassword').val()
+        };
+        
+        $('#dbTestResult').html('<span class="text-info"><i class="fas fa-spinner fa-spin"></i> 测试中...</span>');
+        
+        $.ajax({
+            url: '/api/test/database',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(settings)
+        })
+        .done(function(response) {
+            if (response.success) {
+                $('#dbTestResult').html('<span class="text-success"><i class="fas fa-check"></i> 连接成功</span>');
+            } else {
+                $('#dbTestResult').html(`<span class="text-danger"><i class="fas fa-times"></i> 连接失败: ${response.error}</span>`);
+            }
+        })
+        .fail(function() {
+            $('#dbTestResult').html('<span class="text-danger"><i class="fas fa-times"></i> 测试失败</span>');
+        });
+    }
+    
+    // 测试 Redis 连接
+    function testRedisConnection() {
+        const settings = {
+            host: $('#redisHost').val(),
+            port: parseInt($('#redisPort').val()),
+            db: parseInt($('#redisDb').val())
+        };
+        
+        $('#redisTestResult').html('<span class="text-info"><i class="fas fa-spinner fa-spin"></i> 测试中...</span>');
+        
+        $.ajax({
+            url: '/api/test/redis',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(settings)
+        })
+        .done(function(response) {
+            if (response.success) {
+                $('#redisTestResult').html('<span class="text-success"><i class="fas fa-check"></i> 连接成功</span>');
+            } else {
+                $('#redisTestResult').html(`<span class="text-danger"><i class="fas fa-times"></i> 连接失败: ${response.error}</span>`);
+            }
+        })
+        .fail(function() {
+            $('#redisTestResult').html('<span class="text-danger"><i class="fas fa-times"></i> 测试失败</span>');
+        });
+    }
+    
+    // 测试邮件通知
+    function testEmailNotification() {
+        const settings = {
+            smtp_host: $('#smtpHost').val(),
+            smtp_port: parseInt($('#smtpPort').val()),
+            smtp_user: $('#smtpUser').val(),
+            smtp_password: $('#smtpPassword').val(),
+            use_tls: $('#smtpTls').is(':checked')
+        };
+        
+        $.ajax({
+            url: '/api/test/email',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(settings)
+        })
+        .done(function(response) {
+            if (response.success) {
+                showSuccess('测试邮件发送成功');
+            } else {
+                showError(`测试邮件发送失败: ${response.error}`);
+            }
+        })
+        .fail(function() {
+            showError('测试邮件发送失败');
+        });
+    }
+    
+    // 测试钉钉通知
+    function testDingtalkNotification() {
+        const settings = {
+            webhook_url: $('#dingtalkWebhook').val(),
+            secret: $('#dingtalkSecret').val()
+        };
+        
+        $.ajax({
+            url: '/api/test/dingtalk',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(settings)
+        })
+        .done(function(response) {
+            if (response.success) {
+                showSuccess('测试钉钉消息发送成功');
+            } else {
+                showError(`测试钉钉消息发送失败: ${response.error}`);
+            }
+        })
+        .fail(function() {
+            showError('测试钉钉消息发送失败');
+        });
+    }
+    
+    // 刷新系统信息
+    function refreshSystemInfo() {
+        $.get('/api/system/info')
+            .done(function(response) {
+                if (response.success) {
+                    updateSystemInfo(response.data);
+                }
+            })
+            .fail(function() {
+                console.error('刷新系统信息失败');
+            });
+    }
+    
+    // 更新系统信息显示
+    function updateSystemInfo(info) {
+        $('#systemStatus').text(info.status || '运行中');
+        $('#uptime').text(info.uptime || '0天');
+        $('#version').text(info.version || '1.0.0');
+        $('#activeWorkers').text(info.workers || 0);
+        
+        // 更新资源使用率
+        if (info.cpu_percent !== undefined) {
+            $('#cpuProgress').css('width', info.cpu_percent + '%');
+            $('#cpuPercent').text(info.cpu_percent.toFixed(1) + '%');
+        }
+        
+        if (info.memory_percent !== undefined) {
+            $('#memoryProgress').css('width', info.memory_percent + '%');
+            $('#memoryPercent').text(info.memory_percent.toFixed(1) + '%');
+            $('#memoryUsed').text(formatFileSize(info.memory_used || 0));
+            $('#memoryTotal').text(formatFileSize(info.memory_total || 0));
+        }
+        
+        if (info.disk_percent !== undefined) {
+            $('#diskProgress').css('width', info.disk_percent + '%');
+            $('#diskPercent').text(info.disk_percent.toFixed(1) + '%');
+            $('#diskUsed').text(formatFileSize(info.disk_used || 0));
+            $('#diskTotal').text(formatFileSize(info.disk_total || 0));
+        }
+    }
+    
+    // 开始系统信息自动刷新
+    function startSystemInfoRefresh() {
+        setInterval(refreshSystemInfo, 30000); // 30秒刷新一次
+    }
+    
+    // 重启系统
+    function restartSystem() {
+        confirmAction('确定要重启系统吗？这将中断所有正在运行的任务。', function() {
+            $.post('/api/system/restart')
+                .done(function(response) {
+                    if (response.success) {
+                        showSuccess('系统重启命令已发送，请稍等...');
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 5000);
+                    } else {
+                        showError(response.error || '重启系统失败');
+                    }
+                })
+                .fail(function() {
+                    showError('重启系统失败');
+                });
+        });
+    }
+    
+    // 导出配置
+    function exportConfig() {
+        window.location.href = '/api/config/export';
+    }
+    
+    // 导入配置
+    function importConfig() {
+        $('#importConfigModal').modal('show');
+    }
+    
+    // 执行配置导入
+    function doImportConfig() {
+        const fileInput = document.getElementById('configFile');
+        const file = fileInput.files[0];
+        
+        if (!file) {
+            showWarning('请选择配置文件');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('config_file', file);
+        
+        $.ajax({
+            url: '/api/config/import',
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false
+        })
+        .done(function(response) {
+            if (response.success) {
+                showSuccess('配置导入成功，页面将刷新');
+                $('#importConfigModal').modal('hide');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } else {
+                showError(response.error || '配置导入失败');
+            }
+        })
+        .fail(function() {
+            showError('配置导入失败');
+        });
+    }
+    
+    // 清空所有数据
+    function clearAllData() {
+        confirmAction('确定要清空所有数据吗？此操作不可撤销，将删除所有网站、内容和历史记录。', function() {
+            $.post('/api/data/clear')
+                .done(function(response) {
+                    if (response.success) {
+                        showSuccess('所有数据已清空');
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 2000);
+                    } else {
+                        showError(response.error || '清空数据失败');
+                    }
+                })
+                .fail(function() {
+                    showError('清空数据失败');
+                });
+        });
+    }
+    
+    // 恢复默认设置
+    function resetToDefaults() {
+        confirmAction('确定要恢复默认设置吗？这将重置所有配置选项。', function() {
+            $.post('/api/settings/reset')
+                .done(function(response) {
+                    if (response.success) {
+                        showSuccess('已恢复默认设置，页面将刷新');
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 2000);
+                    } else {
+                        showError(response.error || '恢复默认设置失败');
+                    }
+                })
+                .fail(function() {
+                    showError('恢复默认设置失败');
+                });
+        });
+    }
+</script>
+{% endblock %}

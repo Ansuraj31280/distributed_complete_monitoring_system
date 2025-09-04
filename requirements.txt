@@ -1,0 +1,164 @@
+# 网页监控系统依赖包
+
+# Web框架
+Flask==2.3.3
+Flask-Session==0.5.0
+Werkzeug==2.3.7
+Jinja2==3.1.2
+MarkupSafe==2.1.3
+
+# 任务队列
+celery==5.3.4
+redis==5.0.1
+kombu==5.3.4
+billiard==4.2.0
+
+# 数据库
+SQLAlchemy==2.0.23
+psycopg2-binary==2.9.7
+alembic==1.12.1
+
+# HTTP请求和网页抓取
+requests==2.31.0
+requests-oauthlib==1.3.1
+urllib3==2.0.7
+httpx==0.25.2
+
+# 网页解析
+BeautifulSoup4==4.12.2
+lxml==4.9.3
+html5lib==1.1
+pyquery==2.0.0
+
+# Selenium浏览器自动化
+selenium==4.15.2
+webdriver-manager==4.0.1
+
+# 数据处理和分析
+pandas==2.1.4
+numpy==1.25.2
+scipy==1.11.4
+scikit-learn==1.3.2
+
+# 文本处理和相似度计算
+nltk==3.8.1
+jieba==0.42.1
+fuzzywuzzy==0.18.0
+python-Levenshtein==0.23.0
+
+# 图像处理
+Pillow==10.1.0
+
+# 系统监控
+psutil==5.9.6
+opencv-python==4.8.1.78
+imagehash==4.3.1
+
+# 配置文件处理
+PyYAML==6.0.1
+configparser==6.0.0
+python-dotenv==1.0.0
+
+# 日期时间处理
+python-dateutil==2.8.2
+pytz==2023.3
+arrow==1.3.0
+
+# 加密和安全
+cryptography==41.0.7
+bcrypt==4.1.2
+PyJWT==2.8.0
+
+# 邮件发送
+email-validator==2.1.0
+
+# 系统监控
+psutil==5.9.6
+GPUtil==1.4.0
+
+# 网络工具
+ping3==4.0.4
+requests-toolbelt==1.0.0
+
+# 数据序列化
+msgpack==1.0.7
+orjson==3.9.10
+
+# 异步支持
+aiohttp==3.9.1
+aiofiles==23.2.1
+
+# 开发和测试工具
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+factory-boy==3.3.0
+faker==20.1.0
+
+# 代码质量
+flake8==6.1.0
+black==23.11.0
+isort==5.12.0
+mypy==1.7.1
+
+# 文档生成
+Sphinx==7.2.6
+sphinx-rtd-theme==1.3.0
+
+# 性能分析
+memory-profiler==0.61.0
+line-profiler==4.1.1
+
+# 日志处理
+loguru==0.7.2
+coloredlogs==15.0.1
+
+# 命令行工具
+click==8.1.7
+rich==13.7.0
+tqdm==4.66.1
+
+# 文件处理
+watchdog==3.0.0
+send2trash==1.8.2
+
+# 网络代理
+PySocks==1.7.1
+
+# 交互式Shell
+ipython==8.17.2
+
+# 验证码识别（可选）
+# pytesseract==0.3.10
+# opencv-contrib-python==4.8.1.78
+
+# 机器学习（可选，用于高级内容分析）
+# transformers==4.35.2
+# torch==2.1.1
+# tensorflow==2.15.0
+
+# 分布式计算（可选）
+# dask==2023.11.0
+# distributed==2023.11.0
+
+# 消息队列替代方案（可选）
+# pika==1.3.2  # RabbitMQ
+# kafka-python==2.0.2  # Apache Kafka
+
+# 数据库替代方案（可选）
+# pymongo==4.6.0  # MongoDB
+# elasticsearch==8.11.0  # Elasticsearch
+
+# 云服务SDK（可选）
+# boto3==1.34.0  # AWS
+# azure-storage-blob==12.19.0  # Azure
+# google-cloud-storage==2.10.0  # Google Cloud
+
+# 监控和告警（可选）
+# prometheus-client==0.19.0
+# grafana-api==1.0.3
+
+# API文档（可选）
+# flask-restx==1.3.0
+# flasgger==0.9.7.1
